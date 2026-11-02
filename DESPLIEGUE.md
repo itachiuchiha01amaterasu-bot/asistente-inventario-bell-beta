@@ -78,7 +78,8 @@ git push -u origin main
    - **Root Directory:** *(dejar vacío, usar la raíz del repositorio)*
    - **Runtime:** `Python 3`
    - **Build Command:** `pip install -r requirements.txt`
-   - **Start Command:** `gunicorn backend.app:app`
+   - **Start Command:** `gunicorn backend.app:app --bind 0.0.0.0:$PORT`
+   - **Health Check Path:** `/health`
    > ⚠️ La raíz debe ser el repositorio completo porque `app.py` importa
    > `backend.models`, `backend.auth`, etc. Si pones Root Directory = `backend`,
    > el arranque fallará con `ModuleNotFoundError: No module named 'backend'`.
