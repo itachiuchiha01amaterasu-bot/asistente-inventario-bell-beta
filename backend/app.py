@@ -46,7 +46,20 @@ engine_options = {
 if (os.environ.get("DATABASE_URL") or "").startswith("postgresql+pg8000"):
     import ssl
 
-    engine_options["connect_args"] = {"ssl_context": ssl.create_default_context()}
+    # Si defines DB_SSL_CA con la ruta al certificado raíz de tu base de datos
+    # (Supabase: Database settings -> Download certificate), se verifica la CA.
+    # Si no, se usa el equivalente a sslmode=require: conexión cifrada, sin
+    # verificar la CA (el pooler de Supabase usa una CA interna que no está en
+    # el bundle público de certificados).
+    ca_file = os.environ.get("DB_SSL_CA")
+    if ca_file and os.path.isfile(ca_file):
+        ssl_context = ssl.create_default_context(cafile=ca_file)
+    else:
+        ssl_context = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
+        ssl_context.check_hostname = False
+        ssl_context.verify_mode = ssl.CERT_NONE
+
+    engine_options["connect_args"] = {"ssl_context": ssl_context}
 
 app.config["SQLALCHEMY_ENGINE_OPTIONS"] = engine_options
 
