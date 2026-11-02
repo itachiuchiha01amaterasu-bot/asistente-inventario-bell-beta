@@ -1,7 +1,51 @@
 @import "tailwindcss";
 
 body {
-  background-color: #1a1a1a;
+  background-color: #0f0f0f;
   color: #ffa64d;
   font-family: sans-serif;
+}
+
+/* Colores personalizados del tema Bell IA */
+.bg-fondo2 {
+  background-color: #141414;
+}
+
+.border-naranja2 {
+  border-color: #ffa64d;
+}
+
+.text-naranja2 {
+  color: #ffa64d;
+}
+
+.hover\:bg-fondo:hover {
+  background-color: #1a1a1a;
+}
+
+.fondo {
+  background-color: #1a1a1a;
+}
+
+.naranja2 {
+  color: #ffa64d;
+}
+
+/* Scrollbar personalizada */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: #0f0f0f;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #333;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #555;
 }

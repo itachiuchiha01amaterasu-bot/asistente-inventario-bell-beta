@@ -23,7 +23,7 @@ def normalizar_contenido(valor, unidad_raw):
 
     if u in ["litro", "litros", "l"]:
         return v, "L"
-    if u in ["kg", "kilogramo", "kilogramos"]:
+    if u in ["kg", "kilo", "kilos", "kilogramo", "kilogramos"]:
         return v, "kg"
     if u in ["gramo", "gramos", "g"]:
         return v, "g"
@@ -40,13 +40,12 @@ def normalizar_fecha(valor):
     try:
         if "-" in valor and len(valor.split("-")[0]) == 2:
             d, m, y = valor.split("-")
-            return f"{y}-{m}-{d}"
+            return date(int(y), int(m), int(d))
     except:
         pass
 
     try:
-        datetime.strptime(valor, "%Y-%m-%d")
-        return valor
+        return datetime.strptime(valor, "%Y-%m-%d").date()
     except:
         return None
 
@@ -217,7 +216,7 @@ def ejecutar_accion(contrato):
             contenido_unidad
         )
 
-        arrival = normalizar_fecha(batch.get("arrival_date")) or date.today().strftime("%Y-%m-%d")
+        arrival = normalizar_fecha(batch.get("arrival_date")) or date.today()
 
         lote = InventoryBatch(
             variant_id=variante.id,

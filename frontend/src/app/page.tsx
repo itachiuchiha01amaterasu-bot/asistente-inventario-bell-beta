@@ -1,7 +1,9 @@
 "use client";
 
+import { useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
+import { useAuth } from "@/context/AuthContext";
 import { useIsClient } from "@/hooks/useIsClient";
-import { useEffect, useState, useMemo } from "react";
 import {
   PieChart,
   Pie,
@@ -43,19 +45,32 @@ type Producto = {
 };
 
 export default function Home() {
-  const isClient = useIsClient();
+  const { isAuthenticated, token } = useAuth();
+  const router = useRouter();
+
+  // Todos los hooks deben ejecutarse ANTES de cualquier return condicional
   const [productos, setProductos] = useState<Producto[]>([]);
   const [loading, setLoading] = useState(true);
+  const isClient = useIsClient();
 
   useEffect(() => {
-    fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/inventario`)
+    if (!isAuthenticated) {
+      router.push("/login");
+    }
+  }, [isAuthenticated, router]);
+
+  useEffect(() => {
+    if (!isAuthenticated || !token) return;
+    fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/inventario`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
       .then((res) => res.json())
       .then((data) => {
         setProductos(data.productos || []);
         setLoading(false);
       })
       .catch(() => setLoading(false));
-  }, []);
+  }, [token, isAuthenticated]);
 
   const variantes = useMemo(() => {
     return productos.flatMap((p) =>
@@ -103,6 +118,7 @@ export default function Home() {
     { nivel: "Bajo", cantidad: stockLevels.bajo },
   ];
 
+  if (!isAuthenticated) return null;
 
   if (loading) {
     return (
@@ -127,7 +143,6 @@ export default function Home() {
 
   return (
     <div className="space-y-10">
-
       {/* Título */}
       <h1 className="text-4xl font-bold tracking-tight text-orange-400 animate-[fadeIn_.4s_ease-out]">
         Panel Principal

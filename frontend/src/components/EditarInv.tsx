@@ -67,7 +67,23 @@ export default function EditarVariante({
           </button>
 
           <button
-            onClick={onSave}
+            onClick={() => {
+              // Separar valor y unidad si el usuario escribió todo junto (ej: "200gr")
+              const rawValue = form.content_value?.toString().trim() || "";
+              const match = rawValue.match(/^([\d\.]+)\s*([a-zA-Z]*)$/);
+              const parsedValue = match ? match[1] : rawValue;
+              const parsedUnit = match ? (match[2] || form.content_unit) : form.content_unit;
+
+              const formToSave = {
+                ...form,
+                content_value: parsedValue,
+                content_unit: parsedUnit,
+              };
+
+              // Actualizar el formulario con los valores parseados
+              setForm(formToSave);
+              onSave();
+            }}
             className="px-3 py-1 bg-green-600 text-white rounded hover:bg-green-700"
           >
             Guardar

@@ -2,12 +2,14 @@
 
 import { useState, useRef, useEffect } from "react";
 import { useChat } from "@/context/ChatContext";
+import { useAuth } from "@/context/AuthContext";
 
 type Mensaje = { emisor: "tú" | "ia"; texto: string };
 
 export default function Chat() {
   const [mensaje, setMensaje] = useState("");
   const { chat, setChat, typing, setTyping } = useChat();
+  const { token } = useAuth();
   const chatRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -24,7 +26,10 @@ export default function Chat() {
 
     const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/asistente_ia`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
       body: JSON.stringify({ mensaje }),
     });
 

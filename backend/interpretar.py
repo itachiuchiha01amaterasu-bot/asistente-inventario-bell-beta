@@ -1,13 +1,54 @@
 import json
 import os
 import re
-from groq import Groq
 from datetime import datetime
+
 from dotenv import load_dotenv
+from openai import OpenAI
 
-load_dotenv()
+# Cargar siempre el .env que está junto a este archivo (backend/.env)
+load_dotenv(os.path.join(os.path.dirname(os.path.abspath(__file__)), ".env"))
 
-client = Groq(api_key=os.environ.get("GROQ_API_KEY"))
+
+class ErrorIA(Exception):
+    """Error al comunicarse con el proveedor de IA (clave inválida, sin permisos, etc.)."""
+
+
+# Proveedor compatible con la API de OpenAI (OpenRouter por defecto).
+# También sirve para Groq, Ollama local, Mistral, DeepSeek, etc.
+BASE_URL_IA = os.environ.get("IA_BASE_URL", "https://openrouter.ai/api/v1")
+MODELO_IA = os.environ.get("IA_MODEL", "nvidia/nemotron-3.5-lightning:free")
+
+# Si el modelo principal devuelve 429/503 (proveedor saturado), se prueban estos en orden.
+MODELOS_RESPALDO = [
+    m.strip()
+    for m in os.environ.get(
+        "IA_FALLBACK_MODELS", "openrouter/free,liquid/lfm-2.5-2.6b:free"
+    ).split(",")
+    if m.strip()
+]
+
+_client = None
+
+
+def _get_client():
+    """Crea el cliente de IA solo cuando se necesita, con mensaje claro si falta la clave."""
+    global _client
+    if _client is None:
+        api_key = os.environ.get("IA_API_KEY") or os.environ.get("GROQ_API_KEY")
+        if not api_key:
+            raise ErrorIA("Falta IA_API_KEY en backend/.env")
+        _client = OpenAI(
+            api_key=api_key,
+            base_url=BASE_URL_IA,
+            timeout=60,       # no dejar la petición colgada si el proveedor no responde
+            max_retries=0,    # el respaldo entre modelos se maneja abajo
+            default_headers={
+                "HTTP-Referer": "http://localhost:3000",
+                "X-Title": "Inventario App - Bell IA",
+            },
+        )
+    return _client
 
 def interpretar_mensaje(mensaje: str, contexto: str = ""):
     hoy = datetime.now().strftime("%d-%m-%Y")
@@ -88,13 +129,29 @@ CONTEXTO:
 """
 
     try:
-        respuesta = client.chat.completions.create(
-            model="llama-3.1-8b-instant",
-            messages=[{"role": "user", "content": prompt}],
-            temperature=0.1
-        )
+        # Intentar con el modelo principal y, si el proveedor lo rechaza
+        # (429/503), probar automáticamente los modelos de respaldo.
+        modelos = [MODELO_IA] + [m for m in MODELOS_RESPALDO if m != MODELO_IA]
+        contenido = None
+        ultimo_error = None
 
-        contenido = respuesta.choices[0].message.content.strip()
+        for modelo in modelos:
+            try:
+                respuesta = _get_client().chat.completions.create(
+                    model=modelo,
+                    messages=[{"role": "user", "content": prompt}],
+                    temperature=0.1
+                )
+                contenido = (respuesta.choices[0].message.content or "").strip()
+                if not contenido:
+                    raise ValueError("Respuesta vacía del modelo")
+                break
+            except Exception as e:
+                ultimo_error = e
+                print(f"Modelo '{modelo}' falló: {e}")
+
+        if contenido is None:
+            raise ErrorIA(str(ultimo_error))
 
         inicio = contenido.find("{")
         fin = contenido.rfind("}")
@@ -129,9 +186,13 @@ CONTEXTO:
                 contrato["batch"]["arrival_date"] = hoy
 
         texto_original = mensaje.lower()
-        menciona_contenido = any(
-            unidad in texto_original
-            for unidad in ["ml", "mililitro", "l ", "litro", "kg", "kilogramo", "g", "gramo"]
+        # Buscar unidades como palabras completas para no confundir "integral"
+        # (contiene "l ") con un litro.
+        menciona_contenido = bool(
+            re.search(
+                r"\b(ml|mililitros?|litros?|l|kg|kilos?|kilogramos?|g|gramos?)\b",
+                texto_original,
+            )
         )
 
         if not menciona_contenido:
@@ -139,7 +200,7 @@ CONTEXTO:
             contrato["target"]["content_unit"] = None
 
         if contrato["target"].get("content_value") and contrato["target"].get("content_unit") is None:
-            raw = contrato["target"]["content_value"]
+            raw = str(contrato["target"]["content_value"])
             match = re.match(r"(\d+(?:\.\d+)?)([a-zA-Z]+)", raw)
             if match:
                 contrato["target"]["content_value"] = match.group(1)
@@ -181,14 +242,6 @@ CONTEXTO:
 
     except Exception as e:
         print("Error interpretando mensaje:", e)
-        return {
-            "action": "query",
-            "target": {"product_name": ""},
-            "batch": {
-                "quantity": 0,
-                "arrival_date": hoy,
-                "expiration_date": "Por definir"
-            },
-            "changes": {},
-            "option": None
-        }
+        # Propagamos el error para que la API pueda devolver un mensaje claro
+        # (clave inválida, modelo no disponible, sin conexión, etc.)
+        raise ErrorIA(str(e)) from e

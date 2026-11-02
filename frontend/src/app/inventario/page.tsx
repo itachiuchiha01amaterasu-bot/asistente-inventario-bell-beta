@@ -3,6 +3,7 @@
 import { useEffect, useState, useMemo } from "react";
 import EditarVariante from "../../components/EditarInv";
 import { PencilSquareIcon } from "@heroicons/react/24/solid";
+import { useAuth } from "@/context/AuthContext";
 
 type Lote = {
   id: number;
@@ -67,9 +68,12 @@ export default function Inventario() {
 
   const [editando, setEditando] = useState<Variante | null>(null);
   const [formEdit, setFormEdit] = useState<any>({});
+  const { token } = useAuth();
 
   useEffect(() => {
-    fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/inventario`)
+    fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/inventario`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
       .then((res) => res.json())
       .then((data) => {
         setProductos(data.productos || []);
@@ -79,7 +83,7 @@ export default function Inventario() {
         setProductos([]);
         setLoading(false);
       });
-  }, []);
+  }, [token]);
 
   const variantes = useMemo(() => {
     return productos.flatMap((p) =>
@@ -169,7 +173,10 @@ export default function Inventario() {
       `${process.env.NEXT_PUBLIC_API_URL}/api/editar_variante/${editando.variant_id}`,
       {
         method: "PUT",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
         body: JSON.stringify(formEdit),
       }
     );
@@ -178,7 +185,9 @@ export default function Inventario() {
       alert("Producto actualizado correctamente");
       setEditando(null);
 
-      fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/inventario`)
+      fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/inventario`, {
+        headers: { Authorization: `Bearer ${token}` },
+      })
         .then((res) => res.json())
         .then((data) => setProductos(data.productos || []));
     } else {

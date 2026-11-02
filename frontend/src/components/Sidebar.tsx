@@ -1,17 +1,26 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import Image from "next/image";
+import { useAuth } from "@/context/AuthContext";
 
 import {
   ChartBarIcon,
   CubeIcon,
   ChatBubbleLeftRightIcon,
+  LinkIcon,
 } from "@heroicons/react/24/outline";
 
 export default function Sidebar() {
   const path = usePathname();
+  const router = useRouter();
+  const { logout } = useAuth();
+
+  const handleLogout = () => {
+    logout();
+    router.push("/login");
+  };
 
   const linkClass = (route: string) =>
     `flex items-center gap-3 px-6 py-3 rounded-md mb-2 transition font-semibold
@@ -60,7 +69,20 @@ export default function Sidebar() {
           Chat IA
         </Link>
 
+        <Link href="/login" className={linkClass("/login")}>
+          <LinkIcon className={iconClass("/login")} />
+          Login
+        </Link>
+
       </nav>
+
+      {/* Cerrar sesión */}
+      <button
+        onClick={handleLogout}
+        className="w-full flex items-center gap-2 px-6 py-3 rounded-md text-sm font-semibold text-red-400 hover:bg-red-500/20 transition border border-transparent hover:border-red-500/50 mt-4"
+      >
+        <span>🚪</span> Cerrar sesión
+      </button>
 
       {/* Footer */}
       <div className="mt-auto text-sm text-naranja2 opacity-70">
