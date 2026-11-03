@@ -1,0 +1,25 @@
+services:
+  - type: web
+    name: inventario-backend
+    runtime: python
+    plan: free
+    region: virginia
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn backend.app:app --bind 0.0.0.0:$PORT
+    healthCheckPath: /health
+    autoDeploy: true
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.12.6
+      - key: DATABASE_URL
+        sync: false
+      - key: IA_BASE_URL
+        value: https://openrouter.ai/api/v1
+      - key: IA_API_KEY
+        sync: false
+      - key: IA_MODEL
+        value: nvidia/nemotron-3.5-lightning:free
+      - key: IA_FALLBACK_MODELS
+        value: openrouter/free,liquid/lfm-2.5-2.6b:free
+      - key: JWT_SECRET_KEY
+        generateValue: true
