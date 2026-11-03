@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 import { useIsClient } from "@/hooks/useIsClient";
+import { API_URL } from "@/lib/api";
 import {
   PieChart,
   Pie,
@@ -61,7 +62,7 @@ export default function Home() {
 
   useEffect(() => {
     if (!isAuthenticated || !token) return;
-    fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/inventario`, {
+    fetch(`${API_URL}/api/inventario`, {
       headers: { Authorization: `Bearer ${token}` },
     })
       .then((res) => res.json())

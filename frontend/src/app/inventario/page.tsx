@@ -4,6 +4,7 @@ import { useEffect, useState, useMemo } from "react";
 import EditarVariante from "../../components/EditarInv";
 import { PencilSquareIcon } from "@heroicons/react/24/solid";
 import { useAuth } from "@/context/AuthContext";
+import { API_URL } from "@/lib/api";
 
 type Lote = {
   id: number;
@@ -71,7 +72,7 @@ export default function Inventario() {
   const { token } = useAuth();
 
   useEffect(() => {
-    fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/inventario`, {
+    fetch(`${API_URL}/api/inventario`, {
       headers: { Authorization: `Bearer ${token}` },
     })
       .then((res) => res.json())
@@ -170,7 +171,7 @@ export default function Inventario() {
     if (!editando) return;
 
     const res = await fetch(
-      `${process.env.NEXT_PUBLIC_API_URL}/api/editar_variante/${editando.variant_id}`,
+      `${API_URL}/api/editar_variante/${editando.variant_id}`,
       {
         method: "PUT",
         headers: {
@@ -185,7 +186,7 @@ export default function Inventario() {
       alert("Producto actualizado correctamente");
       setEditando(null);
 
-      fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/inventario`, {
+      fetch(`${API_URL}/api/inventario`, {
         headers: { Authorization: `Bearer ${token}` },
       })
         .then((res) => res.json())

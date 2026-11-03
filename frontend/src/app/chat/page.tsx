@@ -3,6 +3,7 @@
 import { useState, useRef, useEffect } from "react";
 import { useChat } from "@/context/ChatContext";
 import { useAuth } from "@/context/AuthContext";
+import { API_URL } from "@/lib/api";
 
 type Mensaje = { emisor: "tú" | "ia"; texto: string };
 
@@ -24,7 +25,7 @@ export default function Chat() {
 
     setTyping(true);
 
-    const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/asistente_ia`, {
+    const res = await fetch(`${API_URL}/asistente_ia`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
