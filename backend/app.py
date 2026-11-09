@@ -81,6 +81,11 @@ def generar_sku(producto, variante):
     return f"{categoria}-{nombre}-{marca}-{variedad}-{contenido}"
 
 
+# Acciones del asistente que modifican el inventario.
+# El rol "user" solo puede consultar (query/select).
+ACCIONES_DE_ESCRITURA = {"add", "edit", "delete"}
+
+
 def rol_requerido(*roles_permitidos):
     def decorator(fn):
         @wraps(fn)
@@ -257,6 +262,9 @@ def asistente_ia():
         mensaje = data.get("mensaje", "")
         contexto = data.get("contexto", "")
 
+        usuario_actual = User.query.get(get_jwt_identity())
+        rol_actual = usuario_actual.role if usuario_actual else "user"
+
         if not mensaje:
             return jsonify({"respuesta": "No recib� ning�n mensaje."})
 
@@ -277,6 +285,23 @@ def asistente_ia():
 
         if not isinstance(accion, dict):
             return jsonify({"respuesta": "La IA devolvi� un formato inesperado."})
+
+        tipo_accion = str(accion.get("action") or "query").lower()
+
+        # Seguridad: el rol "user" es de solo consulta. Se valida aquí, en el
+        # servidor, para que no sirva de nada manipular el frontend.
+        if rol_actual == "user" and tipo_accion in ACCIONES_DE_ESCRITURA:
+            print(
+                f"Acción bloqueada para '{usuario_actual.username}' "
+                f"(rol user): {tipo_accion}"
+            )
+            return jsonify({
+                "respuesta": (
+                    "Tu cuenta es de solo consulta: puedes preguntar por el "
+                    "inventario, pero no agregar, editar ni eliminar productos. "
+                    "Pide a un administrador que haga el cambio."
+                )
+            }), 403
 
         try:
             resultado = ejecutar_accion(accion)

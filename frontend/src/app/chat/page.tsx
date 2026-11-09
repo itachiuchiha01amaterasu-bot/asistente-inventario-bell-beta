@@ -10,7 +10,8 @@ type Mensaje = { emisor: "tú" | "ia"; texto: string };
 export default function Chat() {
   const [mensaje, setMensaje] = useState("");
   const { chat, setChat, typing, setTyping } = useChat();
-  const { token } = useAuth();
+  const { token, user } = useAuth();
+  const soloConsulta = user?.role === "user";
   const chatRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -114,6 +115,13 @@ export default function Chat() {
           Borrar chat
         </button>
       </div>
+
+      {soloConsulta && (
+        <div className="rounded-lg border border-orange-500/40 bg-orange-500/10 px-4 py-2 text-sm text-orange-200">
+          Modo consulta: puedes preguntar por el inventario, pero no agregar,
+          editar ni eliminar productos.
+        </div>
+      )}
 
       {/* Contenedor del chat */}
       <div
