@@ -141,6 +141,23 @@ def resolver_variante(target, unico=False):
         return None, "No se especificó el nombre del producto."
 
     productos = Product.query.filter(Product.name.ilike(f"%{nombre}%")).all()
+    if not productos and not marca:
+        # "cuanto queda de leche kaly": si no existe un producto llamado
+        # "leche kaly", probar con "leche" como producto y "kaly" como marca.
+        partes = nombre.split()
+        if len(partes) > 1:
+            posible_producto = " ".join(partes[:-1])
+            posible_marca = partes[-1]
+            candidatos = Product.query.filter(
+                Product.name.ilike(f"%{posible_producto}%")
+            ).all()
+            marca_obj = Brand.query.filter(
+                Brand.name.ilike(f"%{posible_marca}%")
+            ).first()
+            if candidatos and marca_obj:
+                productos = candidatos
+                marca = posible_marca
+
     if not productos:
         return None, "No existe el producto solicitado."
 
@@ -244,6 +261,46 @@ def ejecutar_accion(contrato):
 
 
     if action == "query":
+        # Consulta general: "cuantos productos hay", "que hay en el inventario".
+        if not target.get("product_name"):
+            productos = Product.query.order_by(Product.name.asc()).all()
+            if not productos:
+                return "El inventario está vacío."
+
+            lineas = []
+            total_variantes = 0
+            total_unidades = 0
+
+            for producto in productos:
+                for variante in producto.variants:
+                    total_variantes += 1
+                    stock = sum(lote.quantity for lote in variante.batches)
+                    total_unidades += stock
+                    if len(lineas) < 50:
+                        marca = variante.brand.name if variante.brand else "Sin marca"
+                        contenido = (
+                            f"{variante.content_value} {variante.content_unit}"
+                            if variante.content_value
+                            else "Por definir"
+                        )
+                        lineas.append(
+                            f"- {producto.name} | Marca: {marca} | "
+                            f"Variedad: {variante.type_variety or 'Sin variedad'} | "
+                            f"Contenido: {contenido} | Stock: {stock} unidades"
+                        )
+
+            resumen = (
+                f"Inventario: {len(productos)} producto(s), "
+                f"{total_variantes} variante(s), "
+                f"{total_unidades} unidad(es) en total."
+            )
+            detalle = "\n".join(lineas)
+            if total_variantes > len(lineas):
+                detalle += (
+                    f"\n... y {total_variantes - len(lineas)} variante(s) más."
+                )
+            return f"{resumen}\n\n{detalle}" if detalle else resumen
+
         variante, error = resolver_variante(target)
         if error:
             return error

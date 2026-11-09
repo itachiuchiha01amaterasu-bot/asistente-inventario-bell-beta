@@ -2,6 +2,7 @@ import json
 import os
 import re
 import time
+import unicodedata
 from datetime import datetime
 
 from dotenv import load_dotenv
@@ -13,6 +14,197 @@ load_dotenv(os.path.join(os.path.dirname(os.path.abspath(__file__)), ".env"))
 
 class ErrorIA(Exception):
     """Error al comunicarse con el proveedor de IA (clave inválida, sin permisos, etc.)."""
+
+
+# -----------------------------
+# Detección determinista de intención
+# -----------------------------
+# El modelo gratuito a veces clasifica una pregunta como "add"/"delete".
+# Estas reglas mandan sobre la respuesta del modelo: una consulta nunca debe
+# terminar bloqueada (ni ejecutar una escritura) por un error de clasificación.
+
+_VERBOS_ESCRITURA = (
+    ("delete", (
+        "elimina", "eliminar", "borra", "borrar", "quita", "quitar",
+        "remueve", "remover",
+    )),
+    ("edit", (
+        "edita", "editar", "cambia", "cambiar", "actualiza", "actualizar",
+        "modifica", "modificar", "renombra", "renombrar", "corrige", "corregir",
+    )),
+    ("add", (
+        "agrega", "agregar", "anade", "anadir", "pon", "ponle", "registra",
+        "registrar", "ingresa", "ingresar", "crea", "crear", "carga", "cargar",
+    )),
+)
+
+_INICIOS_CONSULTA = (
+    "cuanto", "cuanta", "cuantos", "cuantas", "que", "cual", "cuales",
+    "dime", "muestra", "muestrame", "lista", "listar", "inventario",
+    "stock", "disponible", "disponibles", "hay", "existe", "existen",
+    "consulta", "consultar", "busca", "buscar", "ver", "estado",
+)
+
+_FRASES_CONSULTA = (
+    "cuanto queda", "cuanto hay", "cuanto tiene", "cuantos hay",
+    "cuantas hay", "que queda", "que hay", "stock de", "inventario de",
+    "existencias de", "disponible de",
+)
+
+
+def _sin_acentos(texto):
+    normalizado = unicodedata.normalize("NFD", texto)
+    return "".join(c for c in normalizado if unicodedata.category(c) != "Mn")
+
+
+def _normalizar_texto(texto):
+    return _sin_acentos(str(texto or "").lower().strip())
+
+
+def detectar_intencion(mensaje):
+    """Devuelve 'query', 'add', 'edit', 'delete' o None según el texto.
+
+    Es independiente del modelo: evita que una pregunta se clasifique como
+    escritura y que una orden clara se clasifique como consulta.
+    """
+    texto = _normalizar_texto(mensaje)
+    if not texto:
+        return None
+
+    primera = re.match(r"^([a-z]+)", texto)
+    primera = primera.group(1) if primera else ""
+
+    # "hay que agregar..." es una orden, no una consulta.
+    if texto.startswith("hay que "):
+        resto = texto[len("hay que "):]
+        for accion, verbos in _VERBOS_ESCRITURA:
+            if resto.startswith(verbos):
+                return accion
+
+    for accion, verbos in _VERBOS_ESCRITURA:
+        if primera in verbos:
+            # "agrega más leche" / "ponle más arroz" significa sumar stock
+            # a una variante existente, no crear un producto nuevo.
+            if accion == "add" and re.search(r"\bmas\b", texto):
+                return "edit"
+            return accion
+
+    if primera in _INICIOS_CONSULTA:
+        return "query"
+
+    if any(frase in texto for frase in _FRASES_CONSULTA):
+        return "query"
+
+    return None
+
+
+# -----------------------------
+# Atajo local para consultas simples
+# -----------------------------
+# Estas consultas se responden sin llamar a la IA: son instantáneas y no
+# consumen cuota. Si el texto no encaja, se usa el modelo como siempre.
+
+_RE_CONSULTA = re.compile(
+    r"^\s*(?:"
+    r"(?:cuanto|cuanta|cuantos|cuantas)\s+(?:queda|quedan|hay|tiene|tienen|es|son)\s+(?:de\s+|del\s+|en\s+)?"
+    r"|(?:que|que)\s+(?:hay|queda|quedan)\s+(?:de\s+|del\s+|en\s+)?"
+    r"|(?:dime|muestrame|muestra|consulta|consultar|busca|buscar|lista|listar|ver)\s+"
+    r"(?:el\s+|la\s+|los\s+|las\s+|cuanto\s+|cuanta\s+|cuantos\s+|cuantas\s+)?"
+    r"(?:stock|inventario|disponibilidad|existencias)?\s*(?:de\s+|del\s+)?"
+    r"|(?:stock|inventario|disponibilidad|existencias)\s+(?:de\s+|del\s+)?"
+    r"|(?:hay|existe|existen)\s+"
+    r")\s*(.+)$",
+    re.IGNORECASE,
+)
+
+_RE_PRODUCTOS = re.compile(
+    r"^\s*(?:"
+    r"(?:cuanto|cuanta|cuantos|cuantas|que|cuales)\s+productos?\b"
+    r"|(?:lista|listar|muestra|muestrame|dime|consulta|consultar|ver)\s+"
+    r"(?:el\s+|la\s+|los\s+|las\s+)?"
+    r"(?:inventario|productos?)\b"
+    r"|(?:inventario|stock)\s+(?:general|completo|total)?\s*$"
+    r")",
+    re.IGNORECASE,
+)
+
+_RE_MARCA = re.compile(
+    r"(?:,|;)?\s*(?:de\s+)?(?:la\s+)?marca\s+(.+?)"
+    r"(?=\s*(?:,|;|$|\bcon\b|\bde\b|\bdel\b|\bque\b|\ben\b|\by\b|"
+    r"\bunidades?\b|\bdisponibles?\b|\d))",
+    re.IGNORECASE,
+)
+
+
+def _limpiar_producto(texto):
+    texto = re.sub(
+        r"\b(?:por favor|gracias|disponibles?|en\s+(?:el\s+)?inventario|"
+        r"actualmente|ahora|unidades?|hay)\b",
+        " ",
+        texto,
+        flags=re.IGNORECASE,
+    )
+    texto = re.sub(r"\s+", " ", texto).strip(" .,;:¿?¡!")
+    texto = re.sub(r"^(?:el|la|los|las|un|una|unos|unas)\s+", "", texto, flags=re.IGNORECASE)
+    return texto.strip(" .,;:¿?¡!")
+
+
+def _extraer_consulta_simple(mensaje, permitir_multipalabra=False):
+    """Devuelve (producto, marca) para consultas simples, o None."""
+    texto = str(mensaje or "").strip()
+
+    # Consulta general del inventario ("cuantos productos hay").
+    if _RE_PRODUCTOS.match(texto):
+        return ("", None)
+
+    coincidencia = _RE_CONSULTA.match(texto)
+    if not coincidencia:
+        return None
+
+    resto = coincidencia.group(1).strip()
+    if not resto:
+        return None
+
+    marca = None
+    coincidencia_marca = _RE_MARCA.search(resto)
+    if coincidencia_marca:
+        marca = _limpiar_producto(coincidencia_marca.group(1))
+        resto = (resto[:coincidencia_marca.start()] + " " + resto[coincidencia_marca.end():]).strip()
+
+    producto = _limpiar_producto(resto)
+    if not producto:
+        return None
+
+    # Sin marca explícita solo se aceptan nombres de una palabra: así
+    # "cuanto queda de leche kaly" sigue pasando por el modelo, que entiende
+    # que "kaly" es la marca.
+    if not marca and not permitir_multipalabra and len(producto.split()) > 1:
+        return None
+
+    return (producto, marca)
+
+
+def _contrato_consulta(producto, marca, hoy):
+    return {
+        "action": "query",
+        "target": {
+            "product_name": producto or None,
+            "brand": marca or None,
+            "category": None,
+            "type_variety": None,
+            "content_value": None,
+            "content_unit": None,
+            "sku_code": None,
+        },
+        "batch": {
+            "quantity": 0,
+            "arrival_date": hoy,
+            "expiration_date": "Por definir",
+            "batch_id": None,
+        },
+        "changes": {"field": None, "value": None, "extra": {}},
+        "option": None,
+    }
 
 
 # Proveedor compatible con la API de OpenAI (OpenRouter por defecto).
@@ -58,6 +250,15 @@ def _get_client():
 def interpretar_mensaje(mensaje: str, contexto: str = ""):
     hoy = datetime.now().strftime("%d-%m-%Y")
     texto = mensaje.lower().strip()
+
+    intencion = detectar_intencion(mensaje)
+
+    # Consultas simples: respuesta local, sin gastar cuota ni esperar al modelo.
+    if intencion == "query":
+        consulta = _extraer_consulta_simple(mensaje)
+        if consulta is not None:
+            producto, marca = consulta
+            return _contrato_consulta(producto, marca, hoy)
 
     fecha_regex = r"\b(\d{1,2})[/-](\d{1,2})[/-](\d{2,4})\b"
     coincidencias = re.findall(fecha_regex, mensaje)
@@ -181,6 +382,11 @@ CONTEXTO:
         })
         contrato.setdefault("changes", {})
 
+        # La intención detectada por reglas manda sobre la del modelo.
+        # Esto evita que una consulta termine como add/edit/delete.
+        if intencion:
+            contrato["action"] = intencion
+
         if lote_id_detectado:
             contrato["batch"]["batch_id"] = lote_id_detectado
             if contrato["action"] == "edit":
@@ -253,6 +459,14 @@ CONTEXTO:
 
     except Exception as e:
         print("Error interpretando mensaje:", e)
+        # Si era una consulta clara, responder localmente en vez de fallar
+        # (cuota agotada, modelo lento, sin conexión, etc.).
+        if intencion == "query":
+            consulta = _extraer_consulta_simple(mensaje, permitir_multipalabra=True)
+            if consulta is not None:
+                producto, marca = consulta
+                print("Consulta respondida localmente (sin IA).")
+                return _contrato_consulta(producto, marca, hoy)
         # Propagamos el error para que la API pueda devolver un mensaje claro
         # (clave inválida, modelo no disponible, sin conexión, etc.)
         raise ErrorIA(str(e)) from e

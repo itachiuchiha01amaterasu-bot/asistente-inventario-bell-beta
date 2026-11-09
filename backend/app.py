@@ -271,7 +271,22 @@ def asistente_ia():
         try:
             accion = interpretar_mensaje(mensaje, contexto=contexto)
         except ErrorIA as e:
+            detalle = str(e).lower()
+            es_cuota = (
+                "429" in detalle
+                or "rate limit" in detalle
+                or "free-models-per-day" in detalle
+            )
             print("Error de la IA:", e)
+            if es_cuota:
+                return jsonify({
+                    "respuesta": (
+                        "El servicio de IA alcanzó su límite gratuito diario. "
+                        "Puedes seguir consultando el inventario con normalidad; "
+                        "para agregar, editar o eliminar, espera a que se renueve "
+                        "el límite o agrega créditos en OpenRouter."
+                    )
+                }), 503
             return jsonify({
                 "respuesta": (
                     "No pude conectar con el servicio de IA. "
