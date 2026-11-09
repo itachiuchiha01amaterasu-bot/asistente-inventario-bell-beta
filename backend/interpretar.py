@@ -1,6 +1,7 @@
 import json
 import os
 import re
+import time
 from datetime import datetime
 
 from dotenv import load_dotenv
@@ -17,16 +18,20 @@ class ErrorIA(Exception):
 # Proveedor compatible con la API de OpenAI (OpenRouter por defecto).
 # También sirve para Groq, Ollama local, Mistral, DeepSeek, etc.
 BASE_URL_IA = os.environ.get("IA_BASE_URL", "https://openrouter.ai/api/v1")
-MODELO_IA = os.environ.get("IA_MODEL", "nvidia/nemotron-3.5-lightning:free")
+MODELO_IA = os.environ.get("IA_MODEL", "openrouter/free")
 
-# Si el modelo principal devuelve 429/503 (proveedor saturado), se prueban estos en orden.
+# Si el modelo principal devuelve 429/503 o tarda demasiado, se prueban estos en orden.
 MODELOS_RESPALDO = [
     m.strip()
     for m in os.environ.get(
-        "IA_FALLBACK_MODELS", "openrouter/free,liquid/lfm-2.5-2.6b:free"
+        "IA_FALLBACK_MODELS",
+        "liquid/lfm-2.5-2.6b:free,nvidia/nemotron-3.5-lightning:free",
     ).split(",")
     if m.strip()
 ]
+
+# Tiempo máximo por modelo. Si uno se cuelga, se pasa rápido al siguiente.
+TIMEOUT_MODELO = float(os.environ.get("IA_TIMEOUT", "20"))
 
 _client = None
 
@@ -41,8 +46,8 @@ def _get_client():
         _client = OpenAI(
             api_key=api_key,
             base_url=BASE_URL_IA,
-            timeout=60,       # no dejar la petición colgada si el proveedor no responde
-            max_retries=0,    # el respaldo entre modelos se maneja abajo
+            timeout=TIMEOUT_MODELO,  # no colgar la petición si el proveedor no responde
+            max_retries=0,           # el respaldo entre modelos se maneja abajo
             default_headers={
                 "HTTP-Referer": "http://localhost:3000",
                 "X-Title": "Inventario App - Bell IA",
@@ -136,19 +141,25 @@ CONTEXTO:
         ultimo_error = None
 
         for modelo in modelos:
+            inicio_modelo = time.time()
             try:
                 respuesta = _get_client().chat.completions.create(
                     model=modelo,
                     messages=[{"role": "user", "content": prompt}],
-                    temperature=0.1
+                    temperature=0.1,
+                    timeout=TIMEOUT_MODELO,
                 )
                 contenido = (respuesta.choices[0].message.content or "").strip()
                 if not contenido:
                     raise ValueError("Respuesta vacía del modelo")
+                print(f"Modelo '{modelo}' respondió en {time.time() - inicio_modelo:.1f}s")
                 break
             except Exception as e:
                 ultimo_error = e
-                print(f"Modelo '{modelo}' falló: {e}")
+                print(
+                    f"Modelo '{modelo}' falló tras "
+                    f"{time.time() - inicio_modelo:.1f}s: {e}"
+                )
 
         if contenido is None:
             raise ErrorIA(str(ultimo_error))

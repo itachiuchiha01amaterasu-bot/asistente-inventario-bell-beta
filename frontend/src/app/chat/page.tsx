@@ -15,29 +15,73 @@ export default function Chat() {
   const inputRef = useRef<HTMLInputElement>(null);
 
   const enviar = async () => {
-    if (!mensaje.trim()) return;
+    const texto = mensaje.trim();
+    if (!texto || typing) return;
 
     inputRef.current?.classList.add("animate-[shake_.2s]");
     setTimeout(() => inputRef.current?.classList.remove("animate-[shake_.2s]"), 200);
 
-    setChat((prev: Mensaje[]) => [...prev, { emisor: "tú", texto: mensaje }]);
+    setChat((prev: Mensaje[]) => [...prev, { emisor: "tú", texto }]);
     setMensaje("");
-
     setTyping(true);
 
-    const res = await fetch(`${API_URL}/asistente_ia`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`,
-      },
-      body: JSON.stringify({ mensaje }),
-    });
+    // Cortar la espera si el backend no responde, para no dejar el "..." eterno.
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 125000);
 
-    const data = await res.json();
-    setTyping(false);
+    try {
+      const res = await fetch(`${API_URL}/asistente_ia`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ mensaje: texto }),
+        signal: controller.signal,
+      });
 
-    setChat((prev: Mensaje[]) => [...prev, { emisor: "ia", texto: data.respuesta }]);
+      let data: { respuesta?: string } = {};
+      try {
+        data = await res.json();
+      } catch {
+        data = {};
+      }
+
+      if (!res.ok) {
+        setChat((prev: Mensaje[]) => [
+          ...prev,
+          {
+            emisor: "ia",
+            texto:
+              data.respuesta ||
+              `El servidor respondió con un error (${res.status}). Intenta de nuevo.`,
+          },
+        ]);
+        return;
+      }
+
+      setChat((prev: Mensaje[]) => [
+        ...prev,
+        {
+          emisor: "ia",
+          texto: data.respuesta || "No recibí respuesta del asistente.",
+        },
+      ]);
+    } catch (error) {
+      const abortado = (error as { name?: string })?.name === "AbortError";
+      setChat((prev: Mensaje[]) => [
+        ...prev,
+        {
+          emisor: "ia",
+          texto: abortado
+            ? "La respuesta tardó demasiado. Intenta de nuevo en unos segundos."
+            : "No pude conectar con el servidor. Revisa tu conexión e intenta de nuevo.",
+        },
+      ]);
+    } finally {
+      clearTimeout(timeoutId);
+      setTyping(false);
+    }
   };
 
   const borrarChat = () => {
@@ -116,12 +160,13 @@ export default function Chat() {
           placeholder="Escribe un mensaje..."
           value={mensaje}
           onChange={(e) => setMensaje(e.target.value)}
-          onKeyDown={(e) => e.key === "Enter" && enviar()}
+          onKeyDown={(e) => e.key === "Enter" && !typing && enviar()}
         />
 
         <button
           onClick={enviar}
-          className="bg-orange-600 px-8 rounded-xl font-semibold hover:bg-orange-500 transition shadow-md"
+          disabled={typing || !mensaje.trim()}
+          className="bg-orange-600 px-8 rounded-xl font-semibold hover:bg-orange-500 transition shadow-md disabled:opacity-50 disabled:cursor-not-allowed"
         >
           Enviar
         </button>

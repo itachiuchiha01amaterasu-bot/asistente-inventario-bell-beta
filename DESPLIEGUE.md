@@ -21,8 +21,9 @@ Repositorio: <https://github.com/itachiuchiha01amaterasu-bot/asistente-inventari
 DATABASE_URL=postgresql+pg8000://postgres.xxx:TU_PASSWORD@aws-0-xxx.pooler.supabase.com:5432/postgres
 IA_BASE_URL=https://openrouter.ai/api/v1
 IA_API_KEY=sk-or-v1-tu_clave_real
-IA_MODEL=nvidia/nemotron-3.5-lightning:free
-IA_FALLBACK_MODELS=openrouter/free,liquid/lfm-2.5-2.6b:free
+IA_MODEL=openrouter/free
+IA_FALLBACK_MODELS=liquid/lfm-2.5-2.6b:free,nvidia/nemotron-3.5-lightning:free
+IA_TIMEOUT=20
 JWT_SECRET_KEY=CAMBIA_POR_UNA_CLAVE_LARGA_Y_UNICA
 ```
 
@@ -78,7 +79,7 @@ variables. Solo faltan los secretos.
 - **Root Directory:** *(vacío: la raíz del repositorio)*
 - **Runtime:** `Python 3`
 - **Build Command:** `pip install -r requirements.txt`
-- **Start Command:** `gunicorn backend.app:app --bind 0.0.0.0:$PORT`
+- **Start Command:** `gunicorn backend.app:app --bind 0.0.0.0:$PORT --workers 1 --threads 4 --timeout 120`
 - **Health Check Path:** `/health`
 - Variables: las de la sección anterior (Render genera `JWT_SECRET_KEY` solo
   en el Blueprint; en manual pon una propia).

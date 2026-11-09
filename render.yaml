@@ -5,7 +5,7 @@ services:
     plan: free
     region: virginia
     buildCommand: pip install -r requirements.txt
-    startCommand: gunicorn backend.app:app --bind 0.0.0.0:$PORT
+    startCommand: gunicorn backend.app:app --bind 0.0.0.0:$PORT --workers 1 --threads 4 --timeout 120
     healthCheckPath: /health
     autoDeploy: true
     envVars:
@@ -18,8 +18,10 @@ services:
       - key: IA_API_KEY
         sync: false
       - key: IA_MODEL
-        value: nvidia/nemotron-3.5-lightning:free
+        value: openrouter/free
       - key: IA_FALLBACK_MODELS
-        value: openrouter/free,liquid/lfm-2.5-2.6b:free
+        value: liquid/lfm-2.5-2.6b:free,nvidia/nemotron-3.5-lightning:free
+      - key: IA_TIMEOUT
+        value: "20"
       - key: JWT_SECRET_KEY
         generateValue: true
