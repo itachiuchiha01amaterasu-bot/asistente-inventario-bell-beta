@@ -38,7 +38,12 @@ class Product(db.Model):
 
     category_id = db.Column(db.Integer, db.ForeignKey("categories.id"), nullable=False)
 
-    variants = db.relationship("ProductVariant", backref="product", lazy=True)
+    variants = db.relationship(
+        "ProductVariant",
+        backref="product",
+        lazy=True,
+        cascade="all, delete-orphan",
+    )
 
 
 # -----------------------------
@@ -59,7 +64,12 @@ class ProductVariant(db.Model):
 
     sku_code = db.Column(db.String(200), unique=True, nullable=True)
 
-    batches = db.relationship("InventoryBatch", backref="variant", lazy=True)
+    batches = db.relationship(
+        "InventoryBatch",
+        backref="variant",
+        lazy=True,
+        cascade="all, delete-orphan",
+    )
 
 
 # -----------------------------

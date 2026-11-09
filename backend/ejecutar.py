@@ -129,7 +129,7 @@ def obtener_o_crear_variante(producto, marca, tipo_variedad, contenido_valor, co
     return variante
 
 
-def resolver_variante(target):
+def resolver_variante(target, unico=False):
     nombre = target.get("product_name")
     marca = target.get("brand")
     categoria = target.get("category")
@@ -144,9 +144,12 @@ def resolver_variante(target):
     if not productos:
         return None, "No existe el producto solicitado."
 
-    producto = productos[0]
-
-    variantes = ProductVariant.query.filter_by(product_id=producto.id)
+    # Buscar en las variantes de TODOS los productos que coinciden por nombre,
+    # no solo en el primero (puede haber "Leche kaly" y "Leche don bom").
+    ids_productos = [p.id for p in productos]
+    variantes = ProductVariant.query.filter(
+        ProductVariant.product_id.in_(ids_productos)
+    )
 
     if marca:
         marca_obj = Brand.query.filter(Brand.name.ilike(f"%{marca}%")).first()
@@ -177,8 +180,17 @@ def resolver_variante(target):
             if (valor is None or v.content_value == valor)
             and (unidad is None or v.content_unit == unidad)
         ]
-        if exactas:
+        if len(exactas) == 1:
             return exactas[0], None
+        if unico:
+            opciones = ", ".join(
+                v.sku_code or f"{v.product.name} {v.brand.name if v.brand else ''}".strip()
+                for v in variantes[:6]
+            )
+            return None, (
+                f"Hay varias variantes que coinciden: {opciones}. "
+                "Indica marca, variedad o contenido para elegir una."
+            )
 
     return variantes[0], None
 
@@ -332,62 +344,108 @@ def ejecutar_accion(contrato):
 
 
     if action == "delete":
-        variante, error = resolver_variante(target)
+        variante, error = resolver_variante(target, unico=True)
         if error:
-            return f"No se encontró el producto o variante especificada. {error}"
+            return f"No se pudo eliminar: {error}"
 
         cantidad = normalizar_cantidad(batch.get("quantity"))
-        lotes = InventoryBatch.query.filter_by(variant_id=variante.id).order_by(InventoryBatch.arrival_date.asc()).all()
-
-        for lote in lotes:
-            if cantidad <= 0:
-                break
-
-            if lote.quantity <= cantidad:
-                cantidad -= lote.quantity
-                db.session.delete(lote)
-            else:
-                lote.quantity -= cantidad
-                cantidad = 0
-
-        db.session.commit()
-
-        total = sum(l.quantity for l in variante.batches)
+        producto_id = variante.product_id
 
         nombre = variante.product.name
         marca = variante.brand.name if variante.brand else "Sin marca"
         variedad = variante.type_variety or "Sin variedad"
-        contenido = f"{variante.content_value} {variante.content_unit}" if variante.content_value else "Por definir"
+        contenido = (
+            f"{variante.content_value} {variante.content_unit}"
+            if variante.content_value
+            else "Por definir"
+        )
 
-        if total == 0:
-            db.session.delete(variante)
+        def eliminar_variante_y_producto_si_queda_vacio():
+            """Borra la variante con sus lotes y el producto si ya no tiene variantes."""
+            # Refrescar la colección evita reintentar borrar lotes ya eliminados.
+            db.session.expire(variante, ["batches"])
+            db.session.delete(variante)  # el cascade borra también sus lotes
+            db.session.flush()
+
+            if ProductVariant.query.filter_by(product_id=producto_id).count() == 0:
+                producto = db.session.get(Product, producto_id)
+                if producto:
+                    db.session.delete(producto)
+
             db.session.commit()
 
-            variantes_restantes = ProductVariant.query.filter_by(product_id=variante.product_id).all()
+        # Sin cantidad explícita ("elimina petipuas") se elimina todo.
+        # Con cantidad ("elimina 2 unidades de leche") solo se descuenta stock.
+        if cantidad <= 0:
+            eliminar_variante_y_producto_si_queda_vacio()
+            producto_existe = db.session.get(Product, producto_id) is not None
 
-            if len(variantes_restantes) == 0:
-                producto = Product.query.get(variante.product_id)
-                db.session.delete(producto)
-                db.session.commit()
+            if producto_existe:
+                return (
+                    f"Se eliminó la variante:\n"
+                    f"- Producto: {nombre}\n"
+                    f"- Marca: {marca}\n"
+                    f"- Variedad: {variedad}\n"
+                    f"- Contenido: {contenido}\n\n"
+                    f"La variante fue eliminada."
+                )
 
+            return (
+                f"Producto eliminado:\n"
+                f"- Producto: {nombre}\n"
+                f"- Marca: {marca}\n"
+                f"- Variedad: {variedad}\n"
+                f"- Contenido: {contenido}\n\n"
+                f"La variante y el producto fueron eliminados."
+            )
+
+        restante = cantidad
+        for lote in sorted(list(variante.batches), key=lambda l: l.arrival_date):
+            if restante <= 0:
+                break
+            if lote.quantity <= restante:
+                restante -= lote.quantity
+                db.session.delete(lote)
+            else:
+                lote.quantity -= restante
+                restante = 0
+
+        db.session.flush()
+
+        # Quitar lotes que hayan quedado en cero para no bloquear el borrado.
+        for lote in list(variante.batches):
+            if lote.quantity == 0:
+                db.session.delete(lote)
+        db.session.flush()
+
+        total = (
+            db.session.query(db.func.coalesce(db.func.sum(InventoryBatch.quantity), 0))
+            .filter(InventoryBatch.variant_id == variante.id)
+            .scalar()
+        )
+
+        if total == 0:
+            eliminar_variante_y_producto_si_queda_vacio()
+            producto_existe = db.session.get(Product, producto_id) is not None
+            if producto_existe:
                 return (
                     f"Se eliminaron todas las unidades de:\n"
                     f"- Producto: {nombre}\n"
                     f"- Marca: {marca}\n"
                     f"- Variedad: {variedad}\n"
                     f"- Contenido: {contenido}\n\n"
-                    f"La variante y el producto fueron eliminados."
+                    f"La variante fue eliminada."
                 )
-
             return (
                 f"Se eliminaron todas las unidades de:\n"
                 f"- Producto: {nombre}\n"
                 f"- Marca: {marca}\n"
                 f"- Variedad: {variedad}\n"
                 f"- Contenido: {contenido}\n\n"
-                f"La variante fue eliminada."
+                f"La variante y el producto fueron eliminados."
             )
 
+        db.session.commit()
         return (
             f"Eliminación completada para:\n"
             f"- Producto: {nombre}\n"
