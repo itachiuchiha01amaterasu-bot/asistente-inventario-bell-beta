@@ -53,51 +53,60 @@ export default function RegisterPage() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-900 p-4">
-      <div className="bg-gray-800 p-8 rounded-lg shadow-xl w-full max-w-md">
-        <h1 className="text-2xl font-bold text-orange-500 mb-6 text-center">Crear cuenta</h1>
+    <div className="flex min-h-[calc(100dvh-8rem)] w-full items-center justify-center py-4 sm:py-8">
+      <div className="w-full max-w-md rounded-lg bg-gray-800 p-5 shadow-xl sm:p-8">
+        <h1 className="mb-6 text-center text-xl font-bold text-orange-500 sm:text-2xl">
+          Crear cuenta
+        </h1>
 
         {error && (
-          <div className="bg-red-500/20 text-red-400 p-3 rounded mb-4 text-sm">
+          <div className="mb-4 rounded bg-red-500/20 p-3 text-sm text-red-400">
             {error}
           </div>
         )}
 
         {success && (
-          <div className="bg-green-500/20 text-green-400 p-3 rounded mb-4 text-sm">
+          <div className="mb-4 rounded bg-green-500/20 p-3 text-sm text-green-400">
             {success}
           </div>
         )}
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label className="block text-sm font-medium text-gray-300 mb-1">Usuario</label>
+            <label className="mb-1 block text-sm font-medium text-gray-300">Usuario</label>
             <input
               type="text"
               required
-              className="w-full bg-gray-700 border border-gray-600 rounded px-3 py-2 text-white focus:outline-none focus:border-orange-500"
+              autoComplete="username"
+              autoCapitalize="none"
+              spellCheck={false}
+              className="w-full rounded border border-gray-600 bg-gray-700 px-3 py-2.5 text-base text-white focus:border-orange-500 focus:outline-none"
               value={username}
               onChange={(e) => setUsername(e.target.value)}
             />
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-300 mb-1">Correo electrónico</label>
+            <label className="mb-1 block text-sm font-medium text-gray-300">Correo electrónico</label>
             <input
               type="email"
               required
-              className="w-full bg-gray-700 border border-gray-600 rounded px-3 py-2 text-white focus:outline-none focus:border-orange-500"
+              autoComplete="email"
+              autoCapitalize="none"
+              spellCheck={false}
+              className="w-full rounded border border-gray-600 bg-gray-700 px-3 py-2.5 text-base text-white focus:border-orange-500 focus:outline-none"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
             />
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-300 mb-1">Contraseña</label>
+            <label className="mb-1 block text-sm font-medium text-gray-300">Contraseña</label>
             <input
               type="password"
               required
-              className="w-full bg-gray-700 border border-gray-600 rounded px-3 py-2 text-white focus:outline-none focus:border-orange-500"
+              autoComplete="new-password"
+              className="w-full rounded border border-gray-600 bg-gray-700 px-3 py-2.5 text-base text-white focus:border-orange-500 focus:outline-none"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
             />
@@ -105,13 +114,13 @@ export default function RegisterPage() {
 
           <button
             type="submit"
-            className="w-full bg-orange-500 hover:bg-orange-600 text-white font-bold py-3 rounded transition"
+            className="w-full rounded bg-orange-500 py-3 text-base font-bold text-white transition hover:bg-orange-600"
           >
             Crear cuenta
           </button>
         </form>
 
-        <p className="text-center text-sm text-gray-400 mt-6">
+        <p className="mt-6 text-center text-sm text-gray-400">
           ¿Ya tienes cuenta?{" "}
           <a href="/login" className="text-orange-400 hover:underline">
             Inicia sesión

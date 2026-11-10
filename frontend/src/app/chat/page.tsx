@@ -100,24 +100,24 @@ export default function Chat() {
   }, [chat, typing]);
 
   return (
-    <div className="flex flex-col h-full space-y-6">
+    <div className="flex h-full min-h-[calc(100dvh-9rem)] flex-col space-y-4 lg:min-h-0 lg:space-y-6">
 
       {/* Título + borrar */}
-      <div className="flex items-center justify-between">
-        <h1 className="text-4xl font-bold tracking-tight text-orange-400">
+      <div className="flex items-center justify-between gap-3">
+        <h1 className="min-w-0 truncate text-2xl font-bold tracking-tight text-orange-400 sm:text-3xl lg:text-4xl">
           Asistente Bell
         </h1>
 
         <button
           onClick={borrarChat}
-          className="text-sm px-4 py-2 rounded-lg bg-[#2a2a2a] text-gray-300 border border-[#3a3a3a] hover:bg-red-600 hover:text-white transition"
+          className="shrink-0 rounded-lg border border-[#3a3a3a] bg-[#2a2a2a] px-3 py-2 text-xs text-gray-300 transition hover:bg-red-600 hover:text-white sm:px-4 sm:text-sm"
         >
           Borrar chat
         </button>
       </div>
 
       {soloConsulta && (
-        <div className="rounded-lg border border-orange-500/40 bg-orange-500/10 px-4 py-2 text-sm text-orange-200">
+        <div className="rounded-lg border border-orange-500/40 bg-orange-500/10 px-3 py-2 text-xs text-orange-200 sm:px-4 sm:text-sm">
           Modo consulta: puedes preguntar por el inventario, pero no agregar,
           editar ni eliminar productos.
         </div>
@@ -126,7 +126,7 @@ export default function Chat() {
       {/* Contenedor del chat */}
       <div
         ref={chatRef}
-        className="flex-1 bg-[#1b1b1b] p-6 rounded-xl border border-[#2a2a2a] overflow-y-auto shadow-lg space-y-4"
+        className="min-h-[280px] flex-1 space-y-4 overflow-y-auto rounded-xl border border-[#2a2a2a] bg-[#1b1b1b] p-3 shadow-lg sm:p-6"
       >
         {/* Pantalla de chat vacío */}
         {chat.length === 0 && (
@@ -140,7 +140,7 @@ export default function Chat() {
         {chat.map((msg: Mensaje, i: number) => (
           <div
             key={i}
-            className={`max-w-xl px-4 py-3 rounded-2xl text-sm leading-relaxed shadow-lg transition-all duration-200 animate-[fadeIn_.25s_ease-out] whitespace-pre-wrap ${
+            className={`max-w-[85%] break-words rounded-2xl px-3 py-2.5 text-sm leading-relaxed shadow-lg transition-all duration-200 animate-[fadeIn_.25s_ease-out] whitespace-pre-wrap sm:max-w-xl sm:px-4 sm:py-3 ${
               msg.emisor === "tú"
                 ? "bg-gradient-to-br from-orange-600 to-orange-500 text-white self-end ml-auto"
                 : "bg-[#2a2a2a] text-gray-200 self-start mr-auto"
@@ -161,10 +161,10 @@ export default function Chat() {
       </div>
 
       {/* Input */}
-      <div className="flex gap-3">
+      <div className="flex gap-2 sm:gap-3">
         <input
           ref={inputRef}
-          className="flex-1 p-4 rounded-xl bg-[#111] border border-[#2a2a2a] text-white focus:outline-none focus:ring-2 focus:ring-orange-500 transition"
+          className="min-w-0 flex-1 rounded-xl border border-[#2a2a2a] bg-[#111] p-3.5 text-base text-white transition focus:outline-none focus:ring-2 focus:ring-orange-500 sm:p-4"
           placeholder="Escribe un mensaje..."
           value={mensaje}
           onChange={(e) => setMensaje(e.target.value)}
@@ -174,7 +174,7 @@ export default function Chat() {
         <button
           onClick={enviar}
           disabled={typing || !mensaje.trim()}
-          className="bg-orange-600 px-8 rounded-xl font-semibold hover:bg-orange-500 transition shadow-md disabled:opacity-50 disabled:cursor-not-allowed"
+          className="shrink-0 whitespace-nowrap rounded-xl bg-orange-600 px-4 font-semibold shadow-md transition hover:bg-orange-500 disabled:cursor-not-allowed disabled:opacity-50 sm:px-8"
         >
           Enviar
         </button>

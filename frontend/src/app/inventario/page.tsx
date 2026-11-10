@@ -198,7 +198,7 @@ export default function Inventario() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-screen">
+      <div className="flex min-h-[60vh] items-center justify-center">
         <p className="text-gray-400 text-xl animate-pulse">
           Cargando inventario...
         </p>
@@ -207,27 +207,27 @@ export default function Inventario() {
   }
 
   return (
-    <div className="space-y-10">
-      <h1 className="text-4xl font-bold tracking-tight text-orange-400">
+    <div className="space-y-6 lg:space-y-10">
+      <h1 className="text-2xl font-bold tracking-tight text-orange-400 sm:text-3xl lg:text-4xl">
         Inventario
       </h1>
 
       <input
         type="text"
         placeholder="Buscar por cualquier campo..."
-        className="w-full p-4 rounded-xl bg-[#111] border border-[#2a2a2a] text-white focus:outline-none focus:ring-2 focus:ring-orange-500 transition"
+        className="w-full rounded-xl border border-[#2a2a2a] bg-[#111] p-3.5 text-base text-white transition focus:outline-none focus:ring-2 focus:ring-orange-500 sm:p-4"
         value={busqueda}
         onChange={(e) => setBusqueda(e.target.value)}
       />
 
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <div className="bg-[#1b1b1b] p-6 rounded-xl shadow-lg border border-[#2a2a2a]">
-          <h3 className="text-gray-400 text-lg">Stock Mínimo</h3>
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-3 lg:gap-6">
+        <div className="rounded-xl border border-[#2a2a2a] bg-[#1b1b1b] p-4 shadow-lg sm:p-6">
+          <h3 className="text-sm text-gray-400 sm:text-base lg:text-lg">Stock Mínimo</h3>
 
           {stockMinimo ? (
             <>
-              <p className="text-4xl font-bold text-red-400 mt-2">
+              <p className="mt-2 text-3xl font-bold text-red-400 sm:text-4xl">
                 {stockMinimo.total} unidades
               </p>
               <p className="text-gray-300 mt-1">
@@ -239,12 +239,12 @@ export default function Inventario() {
           )}
         </div>
 
-        <div className="bg-[#1b1b1b] p-6 rounded-xl shadow-lg border border-[#2a2a2a]">
-          <h3 className="text-gray-400 text-lg">Stock Máximo</h3>
+        <div className="rounded-xl border border-[#2a2a2a] bg-[#1b1b1b] p-4 shadow-lg sm:p-6">
+          <h3 className="text-sm text-gray-400 sm:text-base lg:text-lg">Stock Máximo</h3>
 
           {stockMaximo ? (
             <>
-              <p className="text-4xl font-bold text-green-400 mt-2">
+              <p className="mt-2 text-3xl font-bold text-green-400 sm:text-4xl">
                 {stockMaximo.total} unidades
               </p>
               <p className="text-gray-300 mt-1">
@@ -256,9 +256,9 @@ export default function Inventario() {
           )}
         </div>
 
-        <div className="bg-[#1b1b1b] p-6 rounded-xl shadow-lg border border-[#2a2a2a]">
-          <h3 className="text-gray-400 text-lg">Stock Total</h3>
-          <p className="text-5xl font-bold text-orange-500 mt-2">
+        <div className="rounded-xl border border-[#2a2a2a] bg-[#1b1b1b] p-4 shadow-lg sm:p-6">
+          <h3 className="text-sm text-gray-400 sm:text-base lg:text-lg">Stock Total</h3>
+          <p className="mt-2 text-3xl font-bold text-orange-500 sm:text-4xl lg:text-5xl">
             {variantes.reduce((acc, v) => acc + v.total_quantity, 0)}
           </p>
         </div>
@@ -266,40 +266,43 @@ export default function Inventario() {
       </div>
 
       {/* TABLA */}
-      <div className="bg-[#1b1b1b] p-6 rounded-xl shadow-lg border border-[#2a2a2a]">
-        <h2 className="text-2xl font-semibold mb-6 text-gray-200">
+      <div className="rounded-xl border border-[#2a2a2a] bg-[#1b1b1b] p-4 shadow-lg sm:p-6">
+        <h2 className="mb-1 text-xl font-semibold text-gray-200 sm:mb-6 sm:text-2xl">
           Lista de Productos
         </h2>
+        <p className="mb-3 text-xs text-gray-500 sm:hidden">
+          Desliza la tabla hacia los lados para ver todas las columnas.
+        </p>
 
         <div className="overflow-x-auto">
-          <table className="w-full border-collapse">
+          <table className="w-full min-w-[900px] border-collapse text-sm sm:text-base">
             <thead>
               <tr className="text-gray-400 border-b border-[#333] text-left">
-                <th className="p-3 cursor-pointer" onClick={() => ordenarPor("category")}>
+                <th className="whitespace-nowrap p-3 cursor-pointer" onClick={() => ordenarPor("category")}>
                   Rubro {orden === "category" && (direccion === "asc" ? "▲" : "▼")}
                 </th>
 
-                <th className="p-3 cursor-pointer" onClick={() => ordenarPor("product_name")}>
+                <th className="whitespace-nowrap p-3 cursor-pointer" onClick={() => ordenarPor("product_name")}>
                   Producto {orden === "product_name" && (direccion === "asc" ? "▲" : "▼")}
                 </th>
 
-                <th className="p-3 cursor-pointer" onClick={() => ordenarPor("brand")}>
+                <th className="whitespace-nowrap p-3 cursor-pointer" onClick={() => ordenarPor("brand")}>
                   Marca {orden === "brand" && (direccion === "asc" ? "▲" : "▼")}
                 </th>
 
-                <th className="p-3">Variedad</th>
+                <th className="whitespace-nowrap p-3">Variedad</th>
 
-                <th className="p-3">Contenido</th>
+                <th className="whitespace-nowrap p-3">Contenido</th>
 
-                <th className="p-3 cursor-pointer" onClick={() => ordenarPor("total_quantity")}>
+                <th className="whitespace-nowrap p-3 cursor-pointer" onClick={() => ordenarPor("total_quantity")}>
                   Cantidad {orden === "total_quantity" && (direccion === "asc" ? "▲" : "▼")}
                 </th>
 
-                <th className="p-3 cursor-pointer" onClick={() => ordenarPor("fecha_ingreso")}>
+                <th className="whitespace-nowrap p-3 cursor-pointer" onClick={() => ordenarPor("fecha_ingreso")}>
                   Ingreso {orden === "fecha_ingreso" && (direccion === "asc" ? "▲" : "▼")}
                 </th>
 
-                <th className="p-3 cursor-pointer" onClick={() => ordenarPor("fecha_caducidad")}>
+                <th className="whitespace-nowrap p-3 cursor-pointer" onClick={() => ordenarPor("fecha_caducidad")}>
                   Vencimiento {orden === "fecha_caducidad" && (direccion === "asc" ? "▲" : "▼")}
                 </th>
 
@@ -315,7 +318,7 @@ export default function Inventario() {
                     key={v.variant_id}
                     className="border-b border-[#2a2a2a] hover:bg-[#2a2a2a]/40 transition group"
                   >
-                    <td className="p-3">
+                    <td className="whitespace-nowrap p-3">
                       <span className="px-3 py-1 bg-orange-600/20 text-orange-400 rounded-full text-sm relative inline-block">
 
                         <span className="transition-opacity duration-200 group-hover:opacity-0">
@@ -343,27 +346,27 @@ export default function Inventario() {
                       </span>
                     </td>
 
-                    <td className="p-3 font-medium text-gray-200">{v.product_name}</td>
+                    <td className="whitespace-nowrap p-3 font-medium text-gray-200">{v.product_name}</td>
 
-                    <td className="p-3 text-gray-300">{v.brand}</td>
+                    <td className="whitespace-nowrap p-3 text-gray-300">{v.brand}</td>
 
-                    <td className="p-3 text-gray-300">{v.type_variety}</td>
+                    <td className="whitespace-nowrap p-3 text-gray-300">{v.type_variety}</td>
 
-                    <td className="p-3 text-gray-300">
+                    <td className="whitespace-nowrap p-3 text-gray-300">
                       {v.content_value ? `${v.content_value} ${v.content_unit}` : "Por definir"}
                     </td>
 
-                    <td className="p-3">{v.total_quantity}</td>
+                    <td className="whitespace-nowrap p-3">{v.total_quantity}</td>
 
-                    <td className="p-3 text-gray-300">
+                    <td className="whitespace-nowrap p-3 text-gray-300">
                       {formatearFecha(lote?.arrival_date || null)}
                     </td>
 
-                    <td className={`p-3 font-semibold ${estadoCaducidad(lote?.expiration_date || null)}`}>
+                    <td className={`whitespace-nowrap p-3 font-semibold ${estadoCaducidad(lote?.expiration_date || null)}`}>
                       {formatearFecha(lote?.expiration_date || null)}
                     </td>
 
-                    <td className="p-3">
+                    <td className="whitespace-nowrap p-3">
                       <button
                         onClick={() => {
                           setEditando(v);

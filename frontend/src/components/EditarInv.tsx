@@ -20,8 +20,8 @@ export default function EditarVariante({
   if (!variante) return null;
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-      <div className="bg-[#1b1b1b] p-6 rounded-xl w-[420px] border border-[#2a2a2a] shadow-xl relative">
+    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 p-0 sm:items-center sm:p-4">
+      <div className="relative max-h-[90dvh] w-full max-w-lg overflow-y-auto rounded-t-2xl border border-[#2a2a2a] bg-[#1b1b1b] p-4 shadow-xl sm:rounded-xl sm:p-6">
 
         {/* Botón cerrar */}
         <button
@@ -31,7 +31,7 @@ export default function EditarVariante({
           <XMarkIcon className="h-6 w-6" />
         </button>
 
-        <h2 className="text-xl font-semibold text-orange-400 mb-4">
+        <h2 className="mb-4 pr-8 text-lg font-semibold text-orange-400 sm:text-xl">
           Editar {form.product_name}
         </h2>
 
@@ -52,16 +52,16 @@ export default function EditarVariante({
                 onChange={(e) =>
                   setForm({ ...form, [campo]: e.target.value })
                 }
-                className="w-full p-2 rounded bg-[#111] border border-[#333] text-white focus:ring-2 focus:ring-orange-500"
+                className="w-full rounded border border-[#333] bg-[#111] p-2.5 text-base text-white focus:ring-2 focus:ring-orange-500"
               />
             </div>
           ))}
         </div>
 
-        <div className="flex justify-end gap-3 mt-6">
+        <div className="mt-6 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end sm:gap-3">
           <button
             onClick={onClose}
-            className="px-3 py-1 bg-gray-600 text-white rounded hover:bg-gray-700"
+            className="w-full rounded bg-gray-600 px-4 py-2 text-white transition hover:bg-gray-700 sm:w-auto"
           >
             Cancelar
           </button>
@@ -84,7 +84,7 @@ export default function EditarVariante({
               setForm(formToSave);
               onSave();
             }}
-            className="px-3 py-1 bg-green-600 text-white rounded hover:bg-green-700"
+            className="w-full rounded bg-green-600 px-4 py-2 text-white transition hover:bg-green-700 sm:w-auto"
           >
             Guardar
           </button>

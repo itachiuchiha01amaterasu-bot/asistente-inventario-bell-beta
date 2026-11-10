@@ -1,9 +1,23 @@
 @import "tailwindcss";
 
+html {
+  -webkit-text-size-adjust: 100%;
+}
+
 body {
   background-color: #0f0f0f;
   color: #ffa64d;
   font-family: sans-serif;
+  min-height: 100vh;
+  min-height: 100dvh;
+  overflow-x: hidden;
+}
+
+/* Alto real de la pantalla en móviles (con barra de direcciones dinámica),
+   con 100vh como respaldo para navegadores antiguos. */
+.app-shell {
+  height: 100vh;
+  height: 100dvh;
 }
 
 /* Colores personalizados del tema Bell IA */

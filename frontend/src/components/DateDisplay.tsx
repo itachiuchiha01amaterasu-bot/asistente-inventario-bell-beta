@@ -25,5 +25,9 @@ export default function DateDisplay() {
     return () => clearInterval(timer);
   }, []);
 
-  return <span className="text-lg font-semibold text-orange-500 tracking-wide">{fecha}</span>;
+  return (
+    <span className="hidden whitespace-nowrap text-xs font-semibold tracking-wide text-orange-500 min-[360px]:inline sm:text-sm lg:text-lg">
+      {fecha}
+    </span>
+  );
 }

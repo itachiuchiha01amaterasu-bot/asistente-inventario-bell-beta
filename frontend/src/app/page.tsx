@@ -52,7 +52,16 @@ export default function Home() {
   // Todos los hooks deben ejecutarse ANTES de cualquier return condicional
   const [productos, setProductos] = useState<Producto[]>([]);
   const [loading, setLoading] = useState(true);
+  const [pantallaPequena, setPantallaPequena] = useState(false);
   const isClient = useIsClient();
+
+  useEffect(() => {
+    const consulta = window.matchMedia("(max-width: 639px)");
+    const actualizar = () => setPantallaPequena(consulta.matches);
+    actualizar();
+    consulta.addEventListener("change", actualizar);
+    return () => consulta.removeEventListener("change", actualizar);
+  }, []);
 
   useEffect(() => {
     if (!isAuthenticated) {
@@ -123,18 +132,18 @@ export default function Home() {
 
   if (loading) {
     return (
-      <div className="space-y-10 animate-pulse">
-        <h1 className="text-4xl font-bold tracking-tight text-orange-400">
+      <div className="space-y-6 animate-pulse lg:space-y-10">
+        <h1 className="text-2xl font-bold tracking-tight text-orange-400 sm:text-3xl lg:text-4xl">
           Panel Principal
         </h1>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-3 lg:gap-6">
           <div className="bg-[#1b1b1b] h-32 rounded-xl"></div>
           <div className="bg-[#1b1b1b] h-32 rounded-xl"></div>
           <div className="bg-[#1b1b1b] h-32 rounded-xl"></div>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:gap-6">
           <div className="bg-[#1b1b1b] h-72 rounded-xl"></div>
           <div className="bg-[#1b1b1b] h-72 rounded-xl"></div>
         </div>
@@ -143,61 +152,61 @@ export default function Home() {
   }
 
   return (
-    <div className="space-y-10">
+    <div className="space-y-6 lg:space-y-10">
       {/* Título */}
-      <h1 className="text-4xl font-bold tracking-tight text-orange-400 animate-[fadeIn_.4s_ease-out]">
+      <h1 className="text-2xl font-bold tracking-tight text-orange-400 animate-[fadeIn_.4s_ease-out] sm:text-3xl lg:text-4xl">
         Panel Principal
       </h1>
 
       {/* TARJETAS */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-3 lg:gap-6">
 
         {/* Tarjeta 1 */}
-        <div className="bg-gradient-to-br from-[#1b1b1b] to-[#141414] p-6 rounded-xl shadow-lg border border-[#2a2a2a] hover:scale-[1.03] transition-all animate-[fadeIn_.4s_ease-out]">
+        <div className="bg-gradient-to-br from-[#1b1b1b] to-[#141414] p-4 sm:p-6 rounded-xl shadow-lg border border-[#2a2a2a] sm:hover:scale-[1.03] transition-all animate-[fadeIn_.4s_ease-out]">
           <div className="flex items-center justify-between">
-            <h3 className="text-gray-400 text-lg">Total Inventario</h3>
-            <span className="text-orange-500 text-4xl drop-shadow-[0_0_10px_rgba(249,115,22,0.4)]">📦</span>
+            <h3 className="text-sm text-gray-400 sm:text-base lg:text-lg">Total Inventario</h3>
+            <span className="text-orange-500 text-2xl sm:text-3xl lg:text-4xl drop-shadow-[0_0_10px_rgba(249,115,22,0.4)]">📦</span>
           </div>
-          <p className="text-5xl font-bold text-orange-500 mt-2">{totalInventario}</p>
+          <p className="mt-2 text-3xl font-bold text-orange-500 sm:text-4xl lg:text-5xl">{totalInventario}</p>
           <div className="h-[3px] w-full bg-orange-500/20 mt-4 rounded-full"></div>
         </div>
 
         {/* Tarjeta 2 */}
-        <div className="bg-gradient-to-br from-[#1b1b1b] to-[#141414] p-6 rounded-xl shadow-lg border border-[#2a2a2a] hover:scale-[1.03] transition-all animate-[fadeIn_.5s_ease-out]">
+        <div className="bg-gradient-to-br from-[#1b1b1b] to-[#141414] p-4 sm:p-6 rounded-xl shadow-lg border border-[#2a2a2a] sm:hover:scale-[1.03] transition-all animate-[fadeIn_.5s_ease-out]">
           <div className="flex items-center justify-between">
-            <h3 className="text-gray-400 text-lg">Productos Registrados</h3>
-            <span className="text-orange-500 text-4xl drop-shadow-[0_0_10px_rgba(249,115,22,0.4)]">📄</span>
+            <h3 className="text-sm text-gray-400 sm:text-base lg:text-lg">Productos Registrados</h3>
+            <span className="text-orange-500 text-2xl sm:text-3xl lg:text-4xl drop-shadow-[0_0_10px_rgba(249,115,22,0.4)]">📄</span>
           </div>
-          <p className="text-5xl font-bold text-orange-500 mt-2">{variantesRegistradas}</p>
+          <p className="mt-2 text-3xl font-bold text-orange-500 sm:text-4xl lg:text-5xl">{variantesRegistradas}</p>
           <div className="h-[3px] w-full bg-orange-500/20 mt-4 rounded-full"></div>
         </div>
 
         {/* Tarjeta 3 */}
-        <div className="bg-gradient-to-br from-[#1b1b1b] to-[#141414] p-6 rounded-xl shadow-lg border border-[#2a2a2a] hover:scale-[1.03] transition-all animate-[fadeIn_.6s_ease-out]">
+        <div className="bg-gradient-to-br from-[#1b1b1b] to-[#141414] p-4 sm:p-6 rounded-xl shadow-lg border border-[#2a2a2a] sm:hover:scale-[1.03] transition-all animate-[fadeIn_.6s_ease-out]">
           <div className="flex items-center justify-between">
-            <h3 className="text-gray-400 text-lg">Consultas IA Hoy</h3>
-            <span className="text-orange-500 text-4xl drop-shadow-[0_0_10px_rgba(249,115,22,0.4)]">🤖</span>
+            <h3 className="text-sm text-gray-400 sm:text-base lg:text-lg">Consultas IA Hoy</h3>
+            <span className="text-orange-500 text-2xl sm:text-3xl lg:text-4xl drop-shadow-[0_0_10px_rgba(249,115,22,0.4)]">🤖</span>
           </div>
-          <p className="text-5xl font-bold text-orange-500 mt-2">{consultasIA}</p>
+          <p className="mt-2 text-3xl font-bold text-orange-500 sm:text-4xl lg:text-5xl">{consultasIA}</p>
           <div className="h-[3px] w-full bg-orange-500/20 mt-4 rounded-full"></div>
         </div>
 
       </div>
 
       {/* GRÁFICOS */}
-      <h2 className="text-3xl font-semibold text-orange-300 drop-shadow-[0_0_8px_rgba(249,115,22,0.3)]">
+      <h2 className="text-xl font-semibold text-orange-300 drop-shadow-[0_0_8px_rgba(249,115,22,0.3)] sm:text-2xl lg:text-3xl">
         Gráficos
       </h2>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:gap-6">
 
         {/* Gráfico 1 */}
-        <div className="bg-[#1b1b1b] p-6 rounded-xl shadow-lg border border-[#2a2a2a] animate-[fadeIn_.5s_ease-out]">
-          <h3 className="text-xl font-semibold mb-4 text-gray-300">
+        <div className="min-w-0 overflow-hidden rounded-xl border border-[#2a2a2a] bg-[#1b1b1b] p-4 shadow-lg animate-[fadeIn_.5s_ease-out] sm:p-6">
+          <h3 className="mb-4 text-lg font-semibold text-gray-300 sm:text-xl">
             Inventario por Rubro
           </h3>
 
-          <div className="relative w-full h-[300px]">
+          <div className="relative h-[260px] w-full sm:h-[300px]">
             {isClient && (
               <ResponsiveContainer width="100%" height="100%">
                 <PieChart>
@@ -207,11 +216,14 @@ export default function Home() {
                     nameKey="categoria"
                     cx="50%"
                     cy="50%"
-                    outerRadius={90}
+                    outerRadius={pantallaPequena ? 70 : 90}
                     isAnimationActive={true}
                     animationDuration={800}
-                    label={({ name, percent }) =>
-                      `${name} ${((percent ?? 0) * 100).toFixed(0)}%`
+                    label={
+                      pantallaPequena
+                        ? false
+                        : ({ name, percent }) =>
+                            `${name} ${((percent ?? 0) * 100).toFixed(0)}%`
                     }
                   >
                     {dataCategorias.map((_, index) => (
@@ -235,12 +247,12 @@ export default function Home() {
         </div>
 
         {/* Gráfico 2 */}
-        <div className="bg-[#1b1b1b] p-6 rounded-xl shadow-lg border border-[#2a2a2a] animate-[fadeIn_.6s_ease-out]">
-          <h3 className="text-xl font-semibold mb-4 text-gray-300">
+        <div className="min-w-0 overflow-hidden rounded-xl border border-[#2a2a2a] bg-[#1b1b1b] p-4 shadow-lg animate-[fadeIn_.6s_ease-out] sm:p-6">
+          <h3 className="mb-4 text-lg font-semibold text-gray-300 sm:text-xl">
             Niveles de Stock
           </h3>
 
-          <div className="relative w-full h-[300px]">
+          <div className="relative h-[260px] w-full sm:h-[300px]">
             {isClient && (
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={dataStock}>
