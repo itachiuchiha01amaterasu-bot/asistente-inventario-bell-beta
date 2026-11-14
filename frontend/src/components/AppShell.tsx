@@ -10,6 +10,9 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   const [menuAbierto, setMenuAbierto] = useState(false);
   const pathname = usePathname();
 
+  // En login y registro no hay nada que navegar todavía: ocultamos el menú.
+  const esPaginaPublica = pathname === "/login" || pathname === "/register";
+
   // Cerrar el menú al cambiar de página.
   useEffect(() => {
     setMenuAbierto(false);
@@ -37,7 +40,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   return (
     <div className="app-shell flex overflow-hidden bg-[#0f0f0f]">
       {/* Fondo oscuro del menú */}
-      {menuAbierto && (
+      {menuAbierto && !esPaginaPublica && (
         <button
           type="button"
           aria-label="Cerrar menú"
@@ -47,32 +50,36 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
       )}
 
       {/* Menú deslizable (móvil, tablet y escritorio) */}
-      <div
-        className={`fixed inset-y-0 left-0 z-50 transform shadow-2xl transition-transform duration-300 ease-out ${
-          menuAbierto ? "translate-x-0" : "-translate-x-full"
-        }`}
-        aria-hidden={!menuAbierto}
-        inert={!menuAbierto}
-      >
-        <Sidebar
-          onNavigate={() => setMenuAbierto(false)}
-          onClose={() => setMenuAbierto(false)}
-        />
-      </div>
+      {!esPaginaPublica && (
+        <div
+          className={`fixed inset-y-0 left-0 z-50 transform shadow-2xl transition-transform duration-300 ease-out ${
+            menuAbierto ? "translate-x-0" : "-translate-x-full"
+          }`}
+          aria-hidden={!menuAbierto}
+          inert={!menuAbierto}
+        >
+          <Sidebar
+            onNavigate={() => setMenuAbierto(false)}
+            onClose={() => setMenuAbierto(false)}
+          />
+        </div>
+      )}
 
       {/* Contenido */}
       <div className="flex min-w-0 flex-1 flex-col">
         <header className="flex h-14 shrink-0 items-center justify-between gap-2 border-b border-[#2a2a2a] bg-[#141414] px-3 shadow-md sm:h-16 sm:px-5 lg:px-8">
           <div className="flex min-w-0 items-center gap-2">
-            <button
-              type="button"
-              onClick={() => setMenuAbierto(true)}
-              aria-label="Abrir menú"
-              aria-expanded={menuAbierto}
-              className="shrink-0 rounded-lg border border-[#2a2a2a] p-2 text-orange-400 transition hover:bg-[#1f1f1f]"
-            >
-              <Bars3Icon className="h-6 w-6" />
-            </button>
+            {!esPaginaPublica && (
+              <button
+                type="button"
+                onClick={() => setMenuAbierto(true)}
+                aria-label="Abrir menú"
+                aria-expanded={menuAbierto}
+                className="shrink-0 rounded-lg border border-[#2a2a2a] p-2 text-orange-400 transition hover:bg-[#1f1f1f]"
+              >
+                <Bars3Icon className="h-6 w-6" />
+              </button>
+            )}
 
             <h2 className="truncate text-[15px] font-semibold text-orange-400 sm:text-xl lg:text-2xl">
               Gestión de Inventario
