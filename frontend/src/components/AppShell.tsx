@@ -36,26 +36,23 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="app-shell flex overflow-hidden bg-[#0f0f0f]">
-      {/* Sidebar fijo en escritorio */}
-      <div className="hidden shrink-0 lg:block">
-        <Sidebar />
-      </div>
-
-      {/* Fondo oscuro del menú móvil */}
+      {/* Fondo oscuro del menú */}
       {menuAbierto && (
         <button
           type="button"
           aria-label="Cerrar menú"
           onClick={() => setMenuAbierto(false)}
-          className="fixed inset-0 z-40 bg-black/60 lg:hidden"
+          className="fixed inset-0 z-40 bg-black/60"
         />
       )}
 
-      {/* Menú deslizable en móvil y tablet */}
+      {/* Menú deslizable (móvil, tablet y escritorio) */}
       <div
-        className={`fixed inset-y-0 left-0 z-50 transform transition-transform duration-300 ease-out lg:hidden ${
+        className={`fixed inset-y-0 left-0 z-50 transform shadow-2xl transition-transform duration-300 ease-out ${
           menuAbierto ? "translate-x-0" : "-translate-x-full"
         }`}
+        aria-hidden={!menuAbierto}
+        inert={!menuAbierto}
       >
         <Sidebar
           onNavigate={() => setMenuAbierto(false)}
@@ -72,7 +69,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
               onClick={() => setMenuAbierto(true)}
               aria-label="Abrir menú"
               aria-expanded={menuAbierto}
-              className="shrink-0 rounded-lg border border-[#2a2a2a] p-2 text-orange-400 transition hover:bg-[#1f1f1f] lg:hidden"
+              className="shrink-0 rounded-lg border border-[#2a2a2a] p-2 text-orange-400 transition hover:bg-[#1f1f1f]"
             >
               <Bars3Icon className="h-6 w-6" />
             </button>

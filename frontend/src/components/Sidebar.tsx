@@ -43,7 +43,7 @@ export default function Sidebar({ onNavigate, onClose }: Props) {
     }`;
 
   return (
-    <aside className="flex h-full w-72 max-w-[85vw] flex-col overflow-y-auto border-r border-naranja2 bg-fondo2 p-4 sm:p-6 lg:w-64">
+    <aside className="flex h-full w-72 max-w-[85vw] flex-col overflow-y-auto border-r border-naranja2 bg-fondo2 p-4 shadow-2xl sm:p-6">
       {/* Logo */}
       <div className="relative mb-6 flex flex-col items-center lg:mb-10">
         {onClose && (
@@ -51,7 +51,7 @@ export default function Sidebar({ onNavigate, onClose }: Props) {
             type="button"
             onClick={onClose}
             aria-label="Cerrar menú"
-            className="absolute right-0 top-0 rounded-md p-1.5 text-gray-400 transition hover:bg-[#1f1f1f] hover:text-white lg:hidden"
+            className="absolute right-0 top-0 rounded-md p-1.5 text-gray-400 transition hover:bg-[#1f1f1f] hover:text-white"
           >
             <XMarkIcon className="h-6 w-6" />
           </button>
