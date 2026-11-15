@@ -17,6 +17,7 @@ interface AuthContextType {
   login: (token: string, user: User) => void;
   logout: () => void;
   isAuthenticated: boolean;
+  isReady: boolean;
   hasRole: (role: string) => boolean;
 }
 
@@ -25,14 +26,22 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [token, setToken] = useState<string | null>(null);
+  const [isReady, setIsReady] = useState(false);
 
   useEffect(() => {
     const savedToken = Cookies.get("token");
     const savedUser = Cookies.get("user");
     if (savedToken && savedUser) {
-      setToken(savedToken);
-      setUser(JSON.parse(savedUser));
+      try {
+        setToken(savedToken);
+        setUser(JSON.parse(savedUser));
+      } catch {
+        // Cookie dañada: se descarta para no romper la app.
+        Cookies.remove("token");
+        Cookies.remove("user");
+      }
     }
+    setIsReady(true);
   }, []);
 
   const login = (newToken: string, newUser: User) => {
@@ -54,7 +63,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   return (
-    <AuthContext.Provider value={{ user, token, login, logout, isAuthenticated: !!token, hasRole }}>
+    <AuthContext.Provider value={{ user, token, login, logout, isAuthenticated: !!token, isReady, hasRole }}>
       {children}
     </AuthContext.Provider>
   );
@@ -69,6 +78,7 @@ export const useAuth = () => {
       login: () => {},
       logout: () => {},
       isAuthenticated: false,
+      isReady: false,
       hasRole: () => false,
     };
   }

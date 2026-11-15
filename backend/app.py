@@ -7,12 +7,20 @@ from flask_jwt_extended import jwt_required, get_jwt_identity
 
 from backend.models import db, Category, Brand, Product, ProductVariant, InventoryBatch, User
 from backend.interpretar import interpretar_mensaje, ErrorIA
-from backend.ejecutar import ejecutar_accion
+from backend.ejecutar import (
+    ejecutar_accion,
+    normalizar_fecha,
+    obtener_o_crear_categoria,
+    obtener_o_crear_marca,
+    obtener_o_crear_producto,
+    obtener_o_crear_variante,
+)
 from backend.auth import auth_bp
 
 import os
 import re
 import time
+from datetime import date
 
 # Cargar SIEMPRE el .env que está junto a este archivo (backend/.env),
 # sin importar desde qué carpeta se ejecute el servidor.
@@ -27,7 +35,7 @@ app.config["JWT_SECRET_KEY"] = os.environ.get(
 )
 jwt = JWTManager(app)
 
-# Registrar rutas de autenticaci�n (una sola vez)
+# Registrar rutas de autenticación (una sola vez)
 app.register_blueprint(auth_bp)
 
 app.config["SQLALCHEMY_DATABASE_URI"] = os.environ.get("DATABASE_URL")
@@ -94,7 +102,7 @@ def rol_requerido(*roles_permitidos):
             user_id = get_jwt_identity()
             user = User.query.get(user_id)
             if not user or user.role not in roles_permitidos:
-                return jsonify({"error": "No tienes permisos para esta acci�n"}), 403
+                return jsonify({"error": "No tienes permisos para esta acción"}), 403
             return fn(*args, **kwargs)
         return wrapper
     return decorator
@@ -150,6 +158,130 @@ def inventario():
     except Exception as e:
         print("Error en /api/inventario:", e)
         return jsonify({"error": "Error obteniendo inventario"}), 500
+
+
+@app.route("/api/catalogos", methods=["GET"])
+@rol_requerido("super_admin", "admin")
+def catalogos():
+    """Categorías y marcas existentes, para sugerirlas en el formulario."""
+    return jsonify({
+        "categorias": [
+            c.name for c in Category.query.order_by(Category.name.asc()).all()
+        ],
+        "marcas": [
+            m.name for m in Brand.query.order_by(Brand.name.asc()).all()
+        ],
+    }), 200
+
+
+@app.route("/api/productos", methods=["POST"])
+@rol_requerido("super_admin", "admin")
+def crear_producto():
+    """Alta manual de un producto (con su variante y su lote inicial).
+
+    Solo admin y super_admin. El rol "user" recibe 403 aunque llame la API
+    directamente, no basta con ocultar el enlace en el menú.
+    """
+    data = request.get_json(silent=True) or {}
+
+    nombre = (data.get("product_name") or "").strip()
+    if not nombre:
+        return jsonify({"error": "El nombre del producto es obligatorio"}), 400
+
+    categoria = (data.get("category") or "").strip() or "General"
+    marca = (data.get("brand") or "").strip() or "Sin marca"
+    variedad = (data.get("type_variety") or "").strip() or None
+
+    contenido_valor = data.get("content_value")
+    if contenido_valor in ("", None):
+        contenido_valor = None
+    else:
+        try:
+            contenido_valor = float(str(contenido_valor).replace(",", "."))
+            if contenido_valor < 0:
+                raise ValueError
+        except (TypeError, ValueError):
+            return jsonify({
+                "error": "El contenido debe ser un número mayor o igual a 0"
+            }), 400
+
+    contenido_unidad = (data.get("content_unit") or "").strip() or None
+    if contenido_valor is None:
+        contenido_unidad = None
+    elif not contenido_unidad:
+        return jsonify({"error": "Elige la unidad del contenido"}), 400
+
+    try:
+        cantidad = int(data.get("quantity"))
+        if cantidad < 0:
+            raise ValueError
+    except (TypeError, ValueError):
+        return jsonify({
+            "error": "La cantidad debe ser un número entero mayor o igual a 0"
+        }), 400
+
+    ingreso = normalizar_fecha(data.get("arrival_date")) or date.today()
+    caducidad = normalizar_fecha(data.get("expiration_date"))
+
+    if caducidad and caducidad < ingreso:
+        return jsonify({
+            "error": "La caducidad no puede ser anterior a la fecha de ingreso"
+        }), 400
+
+    try:
+        categoria_obj = obtener_o_crear_categoria(categoria)
+        marca_obj = obtener_o_crear_marca(marca)
+        producto = obtener_o_crear_producto(nombre, categoria_obj)
+        variante = obtener_o_crear_variante(
+            producto,
+            marca_obj,
+            variedad,
+            contenido_valor,
+            contenido_unidad,
+        )
+
+        lote = InventoryBatch(
+            variant_id=variante.id,
+            quantity=cantidad,
+            arrival_date=ingreso,
+            expiration_date=caducidad,
+        )
+        db.session.add(lote)
+        db.session.commit()
+    except Exception as e:
+        db.session.rollback()
+        print("Error en /api/productos:", e)
+        return jsonify({"error": "No se pudo guardar el producto"}), 500
+
+    total = (
+        db.session.query(db.func.coalesce(db.func.sum(InventoryBatch.quantity), 0))
+        .filter(InventoryBatch.variant_id == variante.id)
+        .scalar()
+    )
+
+    return jsonify({
+        "mensaje": "Producto agregado correctamente",
+        "producto": {
+            "id": producto.id,
+            "name": producto.name,
+            "category": categoria_obj.name,
+        },
+        "variante": {
+            "variant_id": variante.id,
+            "brand": marca_obj.name,
+            "type_variety": variante.type_variety,
+            "content_value": variante.content_value,
+            "content_unit": variante.content_unit,
+            "sku_code": variante.sku_code,
+            "total_quantity": int(total or 0),
+        },
+        "lote": {
+            "id": lote.id,
+            "quantity": lote.quantity,
+            "arrival_date": ingreso.isoformat(),
+            "expiration_date": caducidad.isoformat() if caducidad else None,
+        },
+    }), 201
 
 
 def parsear_contenido(valor_raw, unidad_raw):
@@ -266,7 +398,7 @@ def asistente_ia():
         rol_actual = usuario_actual.role if usuario_actual else "user"
 
         if not mensaje:
-            return jsonify({"respuesta": "No recib� ning�n mensaje."})
+            return jsonify({"respuesta": "No recibí ningún mensaje."})
 
         try:
             accion = interpretar_mensaje(mensaje, contexto=contexto)
@@ -299,7 +431,7 @@ def asistente_ia():
             return jsonify({"respuesta": "No pude interpretar tu mensaje."}), 500
 
         if not isinstance(accion, dict):
-            return jsonify({"respuesta": "La IA devolvi� un formato inesperado."})
+            return jsonify({"respuesta": "La IA devolvió un formato inesperado."})
 
         tipo_accion = str(accion.get("action") or "query").lower()
 
@@ -321,8 +453,8 @@ def asistente_ia():
         try:
             resultado = ejecutar_accion(accion)
         except Exception as e:
-            print("Error ejecutando acci�n:", e)
-            return jsonify({"respuesta": "Ocurri� un error ejecutando la acci�n."})
+            print("Error ejecutando acción:", e)
+            return jsonify({"respuesta": "Ocurrió un error ejecutando la acción."})
 
         time.sleep(0.2)
 
@@ -330,7 +462,7 @@ def asistente_ia():
 
     except Exception as e:
         print("Error en /asistente_ia:", e)
-        return jsonify({"respuesta": "Ocurri� un error procesando tu solicitud."}), 500
+        return jsonify({"respuesta": "Ocurrió un error procesando tu solicitud."}), 500
 
 
 @app.route("/health", methods=["GET"])

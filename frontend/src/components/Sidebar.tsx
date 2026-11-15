@@ -8,8 +8,11 @@ import {
   ChartBarIcon,
   CubeIcon,
   ChatBubbleLeftRightIcon,
+  PlusCircleIcon,
   XMarkIcon,
 } from "@heroicons/react/24/outline";
+
+import { useAuth } from "@/context/AuthContext";
 
 type Props = {
   onNavigate?: () => void;
@@ -18,6 +21,11 @@ type Props = {
 
 export default function Sidebar({ onNavigate, onClose }: Props) {
   const path = usePathname();
+  const { user, isReady } = useAuth();
+
+  // "Agregar Producto" solo existe para admin y super_admin.
+  // El backend vuelve a validar el rol aunque alguien fuerce la URL.
+  const esAdmin = user?.role === "admin" || user?.role === "super_admin";
 
   const linkClass = (route: string) =>
     `flex items-center gap-3 rounded-md px-4 py-2.5 mb-2 text-sm font-semibold transition lg:px-6 lg:py-3 lg:text-base
@@ -77,11 +85,22 @@ export default function Sidebar({ onNavigate, onClose }: Props) {
           <ChatBubbleLeftRightIcon className={iconClass("/chat")} />
           Chat IA
         </Link>
+
+        {isReady && esAdmin && (
+          <Link
+            href="/agregar"
+            onClick={onNavigate}
+            className={linkClass("/agregar")}
+          >
+            <PlusCircleIcon className={iconClass("/agregar")} />
+            Agregar Producto
+          </Link>
+        )}
       </nav>
 
       {/* Footer */}
       <div className="mt-auto pt-6 text-xs text-naranja2 opacity-70 lg:text-sm">
-        Bell Assistant v1.3
+        Bell Assistant v1.4
       </div>
     </aside>
   );
