@@ -94,7 +94,14 @@ export default function LoginPage() {
         <p className="mt-6 text-center text-sm text-gray-400">
           ¿No tienes cuenta?{" "}
           <a href="/register" className="text-orange-400 hover:underline">
-            Crear cuenta gratis
+            Crear cuenta
+          </a>
+        </p>
+
+        <p className="mt-2 text-center text-sm text-gray-400">
+          ¿Olvidaste tu contraseña?{" "}
+          <a href="/recuperar" className="text-orange-400 hover:underline">
+            Recuperar contraseña
           </a>
         </p>
       </div>

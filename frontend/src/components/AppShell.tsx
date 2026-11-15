@@ -11,8 +11,11 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   const [menuAbierto, setMenuAbierto] = useState(false);
   const pathname = usePathname();
 
-  // En login y registro no hay nada que navegar todavía: ocultamos el menú.
-  const esPaginaPublica = pathname === "/login" || pathname === "/register";
+  // En login, registro y recuperación no hay nada que navegar todavía: ocultamos el menú.
+  const esPaginaPublica =
+    pathname === "/login" ||
+    pathname === "/register" ||
+    pathname === "/recuperar";
 
   // Cerrar el menú al cambiar de página.
   useEffect(() => {
