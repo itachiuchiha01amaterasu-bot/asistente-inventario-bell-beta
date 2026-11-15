@@ -1,37 +1,22 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import Link from "next/link";
 import { API_URL } from "@/lib/api";
 
-const LARGO_CODIGO = 6;
-
 export default function RecuperarPage() {
-  const [paso, setPaso] = useState<1 | 2 | 3 | 4>(1);
+  const [paso, setPaso] = useState<1 | 2 | 3>(1);
   const [username, setUsername] = useState("");
   const [email, setEmail] = useState("");
-  const [codigo, setCodigo] = useState("");
   const [password, setPassword] = useState("");
   const [confirmar, setConfirmar] = useState("");
   const [mostrarPassword, setMostrarPassword] = useState(false);
   const [resetToken, setResetToken] = useState("");
-  const [mensaje, setMensaje] = useState("");
   const [error, setError] = useState("");
   const [cargando, setCargando] = useState(false);
-  const [segundos, setSegundos] = useState(0);
 
-  // Cuenta atrás para poder pedir otro código.
-  useEffect(() => {
-    if (segundos <= 0) return;
-    const temporizador = setTimeout(
-      () => setSegundos((previo) => (previo > 0 ? previo - 1 : 0)),
-      1000
-    );
-    return () => clearTimeout(temporizador);
-  }, [segundos]);
-
-  const pedirCodigo = async (e?: React.FormEvent) => {
-    e?.preventDefault();
+  const verificarDatos = async (e: React.FormEvent) => {
+    e.preventDefault();
     setError("");
     setCargando(true);
 
@@ -45,54 +30,12 @@ export default function RecuperarPage() {
       const data = await res.json().catch(() => ({}));
 
       if (!res.ok) {
-        if (typeof data.reintentar_en === "number") {
-          setSegundos(data.reintentar_en);
-        }
-        setError(data.error || "No se pudo enviar el código");
-        return;
-      }
-
-      setMensaje(data.mensaje || "Te enviamos un código a tu correo.");
-      setSegundos(
-        typeof data.reintentar_en === "number" ? data.reintentar_en : 60
-      );
-      setCodigo("");
-      setPaso(2);
-    } catch {
-      setError("No se pudo conectar con el servidor. Intenta de nuevo.");
-    } finally {
-      setCargando(false);
-    }
-  };
-
-  const verificarCodigo = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError("");
-
-    if (!new RegExp(`^\\d{${LARGO_CODIGO}}$`).test(codigo)) {
-      setError(`El código debe tener ${LARGO_CODIGO} dígitos`);
-      return;
-    }
-
-    setCargando(true);
-
-    try {
-      const res = await fetch(`${API_URL}/api/auth/verificar-codigo`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ username, codigo }),
-      });
-
-      const data = await res.json().catch(() => ({}));
-
-      if (!res.ok) {
-        setError(data.error || "El código no es válido");
+        setError(data.error || "No se pudieron verificar los datos");
         return;
       }
 
       setResetToken(data.reset_token);
-      setMensaje("");
-      setPaso(3);
+      setPaso(2);
     } catch {
       setError("No se pudo conectar con el servidor. Intenta de nuevo.");
     } finally {
@@ -132,7 +75,7 @@ export default function RecuperarPage() {
 
       setPassword("");
       setConfirmar("");
-      setPaso(4);
+      setPaso(3);
     } catch {
       setError("No se pudo conectar con el servidor. Intenta de nuevo.");
     } finally {
@@ -147,15 +90,10 @@ export default function RecuperarPage() {
           Recuperar contraseña
         </h1>
 
-        <p className="mb-1 text-center text-xs font-medium uppercase tracking-wide text-orange-300">
-          {paso === 4 ? "Completado" : `Paso ${paso} de 3`}
-        </p>
-
         <p className="mb-6 text-center text-sm text-gray-400">
-          {paso === 1 && "Verifica tu usuario y tu correo para recibir un código."}
-          {paso === 2 && "Escribe el código de 6 dígitos que enviamos a tu correo."}
-          {paso === 3 && "Escribe la contraseña nueva que quieres usar."}
-          {paso === 4 && "Tu contraseña se cambió correctamente."}
+          {paso === 1 && "Verifica tu usuario y tu correo para continuar."}
+          {paso === 2 && "Escribe la contraseña nueva que quieres usar."}
+          {paso === 3 && "Tu contraseña se cambió correctamente."}
         </p>
 
         {error && (
@@ -164,14 +102,8 @@ export default function RecuperarPage() {
           </div>
         )}
 
-        {mensaje && paso === 2 && (
-          <div className="mb-4 rounded bg-green-500/20 p-3 text-sm text-green-400">
-            {mensaje}
-          </div>
-        )}
-
         {paso === 1 && (
-          <form onSubmit={pedirCodigo} className="space-y-4">
+          <form onSubmit={verificarDatos} className="space-y-4">
             <div>
               <label className="mb-1 block text-sm font-medium text-gray-300">
                 Usuario
@@ -202,9 +134,6 @@ export default function RecuperarPage() {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
               />
-              <p className="mt-1 text-xs text-gray-400">
-                Debe ser el correo registrado en tu cuenta.
-              </p>
             </div>
 
             <button
@@ -212,73 +141,12 @@ export default function RecuperarPage() {
               disabled={cargando}
               className="w-full rounded bg-orange-500 py-3 text-base font-bold text-white transition hover:bg-orange-600 disabled:cursor-not-allowed disabled:opacity-60"
             >
-              {cargando ? "Enviando..." : "Enviar código"}
+              {cargando ? "Verificando..." : "Continuar"}
             </button>
           </form>
         )}
 
         {paso === 2 && (
-          <form onSubmit={verificarCodigo} className="space-y-4">
-            <div>
-              <label className="mb-1 block text-sm font-medium text-gray-300">
-                Código de confirmación
-              </label>
-              <input
-                type="text"
-                required
-                inputMode="numeric"
-                pattern="[0-9]*"
-                maxLength={LARGO_CODIGO}
-                autoComplete="one-time-code"
-                placeholder="000000"
-                className="w-full rounded border border-gray-600 bg-gray-700 px-3 py-3 text-center text-2xl font-bold tracking-[0.5em] text-white focus:border-orange-500 focus:outline-none"
-                value={codigo}
-                onChange={(e) =>
-                  setCodigo(e.target.value.replace(/\D/g, "").slice(0, LARGO_CODIGO))
-                }
-              />
-              <p className="mt-2 text-xs text-gray-400">
-                El código vence en 10 minutos.
-              </p>
-            </div>
-
-            <button
-              type="submit"
-              disabled={cargando}
-              className="w-full rounded bg-orange-500 py-3 text-base font-bold text-white transition hover:bg-orange-600 disabled:cursor-not-allowed disabled:opacity-60"
-            >
-              {cargando ? "Verificando..." : "Verificar código"}
-            </button>
-
-            <div className="flex flex-col items-center gap-2 text-sm text-gray-400">
-              <button
-                type="button"
-                onClick={() => pedirCodigo()}
-                disabled={cargando || segundos > 0}
-                className="text-orange-400 transition hover:underline disabled:cursor-not-allowed disabled:text-gray-500 disabled:no-underline"
-              >
-                {segundos > 0
-                  ? `Reenviar código (${segundos} s)`
-                  : "Reenviar código"}
-              </button>
-
-              <button
-                type="button"
-                onClick={() => {
-                  setPaso(1);
-                  setMensaje("");
-                  setCodigo("");
-                  setError("");
-                }}
-                className="text-gray-400 transition hover:text-gray-200 hover:underline"
-              >
-                Usar otros datos
-              </button>
-            </div>
-          </form>
-        )}
-
-        {paso === 3 && (
           <form onSubmit={cambiarPassword} className="space-y-4">
             <div>
               <label className="mb-1 block text-sm font-medium text-gray-300">
@@ -331,7 +199,7 @@ export default function RecuperarPage() {
           </form>
         )}
 
-        {paso === 4 && (
+        {paso === 3 && (
           <div className="space-y-5">
             <div className="rounded bg-green-500/20 p-3 text-sm text-green-400">
               Listo. Ya puedes iniciar sesión con tu contraseña nueva.
@@ -346,7 +214,7 @@ export default function RecuperarPage() {
           </div>
         )}
 
-        {paso !== 4 && (
+        {paso !== 3 && (
           <p className="mt-6 text-center text-sm text-gray-400">
             <a href="/login" className="text-orange-400 hover:underline">
               Volver a iniciar sesión
