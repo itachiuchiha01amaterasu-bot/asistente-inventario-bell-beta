@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import { EyeIcon, EyeSlashIcon } from "@heroicons/react/24/outline";
 import { API_URL } from "@/lib/api";
 
 export default function RecuperarPage() {
@@ -11,6 +12,7 @@ export default function RecuperarPage() {
   const [password, setPassword] = useState("");
   const [confirmar, setConfirmar] = useState("");
   const [mostrarPassword, setMostrarPassword] = useState(false);
+  const [mostrarConfirmar, setMostrarConfirmar] = useState(false);
   const [resetToken, setResetToken] = useState("");
   const [error, setError] = useState("");
   const [cargando, setCargando] = useState(false);
@@ -149,45 +151,94 @@ export default function RecuperarPage() {
         {paso === 2 && (
           <form onSubmit={cambiarPassword} className="space-y-4">
             <div>
-              <label className="mb-1 block text-sm font-medium text-gray-300">
+              <label
+                htmlFor="password-nueva"
+                className="mb-1 block text-sm font-medium text-gray-300"
+              >
                 Contraseña nueva
               </label>
-              <input
-                type={mostrarPassword ? "text" : "password"}
-                required
-                autoComplete="new-password"
-                className="w-full rounded border border-gray-600 bg-gray-700 px-3 py-2.5 text-base text-white focus:border-orange-500 focus:outline-none"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-              />
-              <p className="mt-1 text-xs text-gray-400">
+
+              <div className="relative">
+                <input
+                  id="password-nueva"
+                  type={mostrarPassword ? "text" : "password"}
+                  required
+                  autoComplete="new-password"
+                  aria-describedby="password-nueva-ayuda"
+                  className="w-full rounded border border-gray-600 bg-gray-700 px-3 py-2.5 pr-12 text-base text-white focus:border-orange-500 focus:outline-none"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                />
+
+                <button
+                  type="button"
+                  onClick={() => setMostrarPassword((previo) => !previo)}
+                  aria-label={
+                    mostrarPassword ? "Ocultar contraseña" : "Mostrar contraseña"
+                  }
+                  title={
+                    mostrarPassword ? "Ocultar contraseña" : "Mostrar contraseña"
+                  }
+                  className="absolute right-2 top-1/2 -translate-y-1/2 rounded p-1.5 text-gray-400 transition hover:bg-gray-600 hover:text-white"
+                >
+                  {mostrarPassword ? (
+                    <EyeSlashIcon className="h-5 w-5" />
+                  ) : (
+                    <EyeIcon className="h-5 w-5" />
+                  )}
+                </button>
+              </div>
+
+              <p
+                id="password-nueva-ayuda"
+                className="mt-1 text-xs text-gray-400"
+              >
                 Mínimo 8 caracteres.
               </p>
             </div>
 
             <div>
-              <label className="mb-1 block text-sm font-medium text-gray-300">
+              <label
+                htmlFor="password-confirmar"
+                className="mb-1 block text-sm font-medium text-gray-300"
+              >
                 Confirmar contraseña
               </label>
-              <input
-                type={mostrarPassword ? "text" : "password"}
-                required
-                autoComplete="new-password"
-                className="w-full rounded border border-gray-600 bg-gray-700 px-3 py-2.5 text-base text-white focus:border-orange-500 focus:outline-none"
-                value={confirmar}
-                onChange={(e) => setConfirmar(e.target.value)}
-              />
-            </div>
 
-            <label className="flex cursor-pointer items-center gap-2 text-sm text-gray-300">
-              <input
-                type="checkbox"
-                checked={mostrarPassword}
-                onChange={(e) => setMostrarPassword(e.target.checked)}
-                className="h-4 w-4 accent-orange-500"
-              />
-              Mostrar contraseñas
-            </label>
+              <div className="relative">
+                <input
+                  id="password-confirmar"
+                  type={mostrarConfirmar ? "text" : "password"}
+                  required
+                  autoComplete="new-password"
+                  className="w-full rounded border border-gray-600 bg-gray-700 px-3 py-2.5 pr-12 text-base text-white focus:border-orange-500 focus:outline-none"
+                  value={confirmar}
+                  onChange={(e) => setConfirmar(e.target.value)}
+                />
+
+                <button
+                  type="button"
+                  onClick={() => setMostrarConfirmar((previo) => !previo)}
+                  aria-label={
+                    mostrarConfirmar
+                      ? "Ocultar confirmación"
+                      : "Mostrar confirmación"
+                  }
+                  title={
+                    mostrarConfirmar
+                      ? "Ocultar confirmación"
+                      : "Mostrar confirmación"
+                  }
+                  className="absolute right-2 top-1/2 -translate-y-1/2 rounded p-1.5 text-gray-400 transition hover:bg-gray-600 hover:text-white"
+                >
+                  {mostrarConfirmar ? (
+                    <EyeSlashIcon className="h-5 w-5" />
+                  ) : (
+                    <EyeIcon className="h-5 w-5" />
+                  )}
+                </button>
+              </div>
+            </div>
 
             <button
               type="submit"

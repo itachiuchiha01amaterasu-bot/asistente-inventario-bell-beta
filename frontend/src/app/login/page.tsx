@@ -2,7 +2,11 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowPathIcon } from "@heroicons/react/24/outline";
+import {
+  ArrowPathIcon,
+  EyeIcon,
+  EyeSlashIcon,
+} from "@heroicons/react/24/outline";
 import { useAuth } from "@/context/AuthContext";
 import { API_URL } from "@/lib/api";
 
@@ -11,6 +15,7 @@ type Captcha = { id: string; pregunta: string };
 export default function LoginPage() {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
+  const [mostrarPassword, setMostrarPassword] = useState(false);
   const [captcha, setCaptcha] = useState<Captcha | null>(null);
   const [respuesta, setRespuesta] = useState("");
   const [error, setError] = useState("");
@@ -129,17 +134,42 @@ export default function LoginPage() {
           </div>
 
           <div>
-            <label className="mb-1 block text-sm font-medium text-gray-300">
+            <label
+              htmlFor="password-login"
+              className="mb-1 block text-sm font-medium text-gray-300"
+            >
               Contraseña
             </label>
-            <input
-              type="password"
-              required
-              autoComplete="current-password"
-              className="w-full rounded border border-gray-600 bg-gray-700 px-3 py-2.5 text-base text-white focus:border-orange-500 focus:outline-none"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-            />
+
+            <div className="relative">
+              <input
+                id="password-login"
+                type={mostrarPassword ? "text" : "password"}
+                required
+                autoComplete="current-password"
+                className="w-full rounded border border-gray-600 bg-gray-700 px-3 py-2.5 pr-12 text-base text-white focus:border-orange-500 focus:outline-none"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+              />
+
+              <button
+                type="button"
+                onClick={() => setMostrarPassword((previo) => !previo)}
+                aria-label={
+                  mostrarPassword ? "Ocultar contraseña" : "Mostrar contraseña"
+                }
+                title={
+                  mostrarPassword ? "Ocultar contraseña" : "Mostrar contraseña"
+                }
+                className="absolute right-2 top-1/2 -translate-y-1/2 rounded p-1.5 text-gray-400 transition hover:bg-gray-600 hover:text-white"
+              >
+                {mostrarPassword ? (
+                  <EyeSlashIcon className="h-5 w-5" />
+                ) : (
+                  <EyeIcon className="h-5 w-5" />
+                )}
+              </button>
+            </div>
           </div>
 
           <div>
