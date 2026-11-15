@@ -60,6 +60,36 @@ const estadoCaducidad = (fecha: string | null) => {
   return "text-green-400";
 };
 
+// El inventario puede tener varios lotes por variante. Para la columna
+// "Vencimiento" se muestra la fecha más próxima (la que primero caduca),
+// no la del primer lote. Así, al agregar stock con fecha a un producto
+// que ya existía, la fecha nueva sí se ve.
+const fechaVencimiento = (batches: Lote[]) => {
+  const fechas = batches
+    .map((b) => b.expiration_date)
+    .filter((f): f is string => Boolean(f))
+    .sort();
+
+  return fechas[0] ?? null;
+};
+
+// Ingreso más reciente (el último lote que entró).
+const fechaIngreso = (batches: Lote[]) => {
+  const fechas = batches
+    .map((b) => b.arrival_date)
+    .filter(Boolean)
+    .sort();
+
+  return fechas[fechas.length - 1] ?? null;
+};
+
+// Lote que explica la fecha de vencimiento mostrada.
+const loteDelVencimiento = (v: Variante) => {
+  const fecha = fechaVencimiento(v.batches);
+  if (!fecha) return v.batches[0] ?? null;
+  return v.batches.find((b) => b.expiration_date === fecha) ?? null;
+};
+
 export default function Inventario() {
   const [productos, setProductos] = useState<Producto[]>([]);
   const [busqueda, setBusqueda] = useState("");
@@ -113,7 +143,9 @@ export default function Inventario() {
 
   const variantesFiltradas = useMemo(() => {
     return variantes.filter((v) => {
-      const lote = v.batches[0] || null;
+      const fechas = v.batches
+        .map((b) => `${b.arrival_date} ${b.expiration_date ?? ""}`)
+        .join(" ");
 
       const texto = `
         ${v.category}
@@ -121,8 +153,7 @@ export default function Inventario() {
         ${v.brand}
         ${v.type_variety}
         ${v.content_value} ${v.content_unit}
-        ${lote?.arrival_date ?? ""}
-        ${lote?.expiration_date ?? ""}
+        ${fechas}
       `.toLowerCase();
 
       return texto.includes(busqueda.toLowerCase());
@@ -149,14 +180,14 @@ export default function Inventario() {
       }
 
       if (orden === "fecha_ingreso") {
-        const fechaA = new Date(a.batches[0]?.arrival_date || "9999-12-31").getTime();
-        const fechaB = new Date(b.batches[0]?.arrival_date || "9999-12-31").getTime();
+        const fechaA = new Date(fechaIngreso(a.batches) || "9999-12-31").getTime();
+        const fechaB = new Date(fechaIngreso(b.batches) || "9999-12-31").getTime();
         return direccion === "asc" ? fechaA - fechaB : fechaB - fechaA;
       }
 
       if (orden === "fecha_caducidad") {
-        const fechaA = new Date(a.batches[0]?.expiration_date || "9999-12-31").getTime();
-        const fechaB = new Date(b.batches[0]?.expiration_date || "9999-12-31").getTime();
+        const fechaA = new Date(fechaVencimiento(a.batches) || "9999-12-31").getTime();
+        const fechaB = new Date(fechaVencimiento(b.batches) || "9999-12-31").getTime();
         return direccion === "asc" ? fechaA - fechaB : fechaB - fechaA;
       }
 
@@ -311,7 +342,9 @@ export default function Inventario() {
 
             <tbody>
               {variantesOrdenadas.map((v) => {
-                const lote = v.batches[0] || null;
+                const ingreso = fechaIngreso(v.batches);
+                const vencimiento = fechaVencimiento(v.batches);
+                const loteVencimiento = loteDelVencimiento(v);
 
                 return (
                   <tr
@@ -339,7 +372,9 @@ export default function Inventario() {
                               font-semibold
                             "
                           >
-                            Lote: #{v.batches[0].id}
+                            {v.batches.length > 1
+                              ? `Lotes: ${v.batches.length}`
+                              : `Lote: #${loteVencimiento?.id}`}
                           </span>
                         )}
 
@@ -359,11 +394,23 @@ export default function Inventario() {
                     <td className="whitespace-nowrap p-3">{v.total_quantity}</td>
 
                     <td className="whitespace-nowrap p-3 text-gray-300">
-                      {formatearFecha(lote?.arrival_date || null)}
+                      {formatearFecha(ingreso)}
                     </td>
 
-                    <td className={`whitespace-nowrap p-3 font-semibold ${estadoCaducidad(lote?.expiration_date || null)}`}>
-                      {formatearFecha(lote?.expiration_date || null)}
+                    <td
+                      title={v.batches
+                        .map(
+                          (b) =>
+                            `Lote #${b.id}: ${
+                              b.expiration_date
+                                ? formatearFecha(b.expiration_date)
+                                : "sin fecha"
+                            }`
+                        )
+                        .join("\n")}
+                      className={`whitespace-nowrap p-3 font-semibold ${estadoCaducidad(vencimiento)}`}
+                    >
+                      {formatearFecha(vencimiento)}
                     </td>
 
                     <td className="whitespace-nowrap p-3">

@@ -124,7 +124,15 @@ def inventario():
             }
 
             for v in p.variants:
-                lotes = InventoryBatch.query.filter_by(variant_id=v.id).all()
+                lotes = (
+                    InventoryBatch.query
+                    .filter_by(variant_id=v.id)
+                    .order_by(
+                        InventoryBatch.arrival_date.asc(),
+                        InventoryBatch.id.asc(),
+                    )
+                    .all()
+                )
                 total = sum(l.quantity for l in lotes)
 
                 variante_json = {
