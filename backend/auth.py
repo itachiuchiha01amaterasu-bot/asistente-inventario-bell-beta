@@ -33,14 +33,21 @@ def _ip_cliente():
 # -----------------------------
 @auth_bp.route("/api/auth/register", methods=["POST"])
 def register():
-    data = request.get_json()
-    username = data.get("username")
-    email = data.get("email")
-    password = data.get("password")
+    data = request.get_json(silent=True) or {}
+    username = (data.get("username") or "").strip()
+    email = (data.get("email") or "").strip().lower()
+    password = data.get("password") or ""
     role = data.get("role", "user")  # por defecto es usuario normal
 
     if not username or not email or not password:
         return jsonify({"error": "Faltan campos requeridos"}), 400
+
+    # La longitud se valida aquí, en el servidor: no basta con el atributo
+    # minLength del navegador.
+    if len(password) < 8 or not password.strip():
+        return jsonify({
+            "error": "La contraseña debe tener al menos 8 caracteres"
+        }), 400
 
     if User.query.filter_by(username=username).first():
         return jsonify({"error": "El usuario ya existe"}), 400

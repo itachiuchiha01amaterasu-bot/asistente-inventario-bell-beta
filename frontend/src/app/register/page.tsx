@@ -1,23 +1,31 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { useAuth } from "@/context/AuthContext";
+import { EyeIcon, EyeSlashIcon } from "@heroicons/react/24/outline";
 import { API_URL } from "@/lib/api";
 
 export default function RegisterPage() {
   const [username, setUsername] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [mostrarPassword, setMostrarPassword] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
-  const { login } = useAuth();
+  const [enviando, setEnviando] = useState(false);
   const router = useRouter();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
     setSuccess("");
+
+    if (password.length < 8) {
+      setError("La contraseña debe tener al menos 8 caracteres");
+      return;
+    }
+
+    setEnviando(true);
 
     try {
       const res = await fetch(`${API_URL}/api/auth/register`, {
@@ -26,29 +34,22 @@ export default function RegisterPage() {
         body: JSON.stringify({ username, email, password }),
       });
 
-      const data = await res.json();
+      const data = await res.json().catch(() => ({}));
 
       if (!res.ok) {
         setError(data.error || "Error al registrar");
         return;
       }
 
-      setSuccess("Cuenta creada correctamente. Inicia sesión.");
+      setSuccess("Cuenta creada correctamente. Te llevamos al inicio de sesión...");
+      setPassword("");
 
-      // Auto login después de registrar
-      const loginRes = await fetch(`${API_URL}/api/auth/login`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ username, password }),
-      });
-
-      const loginData = await loginRes.json();
-      if (loginRes.ok) {
-        login(loginData.access_token, loginData.usuario);
-        router.push("/");
-      }
-    } catch (err) {
+      // El login exige captcha, así que no se inicia sesión automáticamente.
+      setTimeout(() => router.push("/login"), 1800);
+    } catch {
       setError("Error de conexión con el servidor");
+    } finally {
+      setEnviando(false);
     }
   };
 
@@ -73,7 +74,9 @@ export default function RegisterPage() {
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label className="mb-1 block text-sm font-medium text-gray-300">Usuario</label>
+            <label className="mb-1 block text-sm font-medium text-gray-300">
+              Usuario
+            </label>
             <input
               type="text"
               required
@@ -87,7 +90,9 @@ export default function RegisterPage() {
           </div>
 
           <div>
-            <label className="mb-1 block text-sm font-medium text-gray-300">Correo electrónico</label>
+            <label className="mb-1 block text-sm font-medium text-gray-300">
+              Correo electrónico
+            </label>
             <input
               type="email"
               required
@@ -101,22 +106,56 @@ export default function RegisterPage() {
           </div>
 
           <div>
-            <label className="mb-1 block text-sm font-medium text-gray-300">Contraseña</label>
-            <input
-              type="password"
-              required
-              autoComplete="new-password"
-              className="w-full rounded border border-gray-600 bg-gray-700 px-3 py-2.5 text-base text-white focus:border-orange-500 focus:outline-none"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-            />
+            <label
+              htmlFor="password-registro"
+              className="mb-1 block text-sm font-medium text-gray-300"
+            >
+              Contraseña
+            </label>
+
+            <div className="relative">
+              <input
+                id="password-registro"
+                type={mostrarPassword ? "text" : "password"}
+                required
+                minLength={8}
+                autoComplete="new-password"
+                aria-describedby="password-ayuda"
+                className="w-full rounded border border-gray-600 bg-gray-700 px-3 py-2.5 pr-12 text-base text-white focus:border-orange-500 focus:outline-none"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+              />
+
+              <button
+                type="button"
+                onClick={() => setMostrarPassword((previo) => !previo)}
+                aria-label={
+                  mostrarPassword ? "Ocultar contraseña" : "Mostrar contraseña"
+                }
+                title={
+                  mostrarPassword ? "Ocultar contraseña" : "Mostrar contraseña"
+                }
+                className="absolute right-2 top-1/2 -translate-y-1/2 rounded p-1.5 text-gray-400 transition hover:bg-gray-600 hover:text-white"
+              >
+                {mostrarPassword ? (
+                  <EyeSlashIcon className="h-5 w-5" />
+                ) : (
+                  <EyeIcon className="h-5 w-5" />
+                )}
+              </button>
+            </div>
+
+            <p id="password-ayuda" className="mt-1 text-xs text-gray-400">
+              Mínimo 8 caracteres.
+            </p>
           </div>
 
           <button
             type="submit"
-            className="w-full rounded bg-orange-500 py-3 text-base font-bold text-white transition hover:bg-orange-600"
+            disabled={enviando}
+            className="w-full rounded bg-orange-500 py-3 text-base font-bold text-white transition hover:bg-orange-600 disabled:cursor-not-allowed disabled:opacity-60"
           >
-            Crear cuenta
+            {enviando ? "Creando cuenta..." : "Crear cuenta"}
           </button>
         </form>
 
