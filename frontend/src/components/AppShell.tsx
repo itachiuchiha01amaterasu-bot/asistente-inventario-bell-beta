@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
 import Sidebar from "./Sidebar";
 import DateDisplay from "./DateDisplay";
+import AccountMenu from "./AccountMenu";
 import { CalendarIcon, Bars3Icon } from "@heroicons/react/24/outline";
 
 export default function AppShell({ children }: { children: React.ReactNode }) {
@@ -86,9 +87,13 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
             </h2>
           </div>
 
-          <div className="flex shrink-0 items-center gap-1.5 rounded-lg border border-[#2a2a2a] bg-gradient-to-br from-[#1b1b1b] to-[#141414] px-2 py-1.5 shadow-md sm:gap-2 sm:rounded-xl sm:px-4 sm:py-2">
-            <CalendarIcon className="h-4 w-4 text-orange-500 sm:h-5 sm:w-5 lg:h-6 lg:w-6" />
-            <DateDisplay />
+          <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
+            <div className="flex items-center gap-1.5 rounded-lg border border-[#2a2a2a] bg-gradient-to-br from-[#1b1b1b] to-[#141414] px-2 py-1.5 shadow-md sm:gap-2 sm:rounded-xl sm:px-4 sm:py-2">
+              <CalendarIcon className="h-4 w-4 text-orange-500 sm:h-5 sm:w-5 lg:h-6 lg:w-6" />
+              <DateDisplay />
+            </div>
+
+            {!esPaginaPublica && <AccountMenu />}
           </div>
         </header>
 

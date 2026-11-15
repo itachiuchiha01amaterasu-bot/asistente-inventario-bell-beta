@@ -1,15 +1,13 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname } from "next/navigation";
 import Image from "next/image";
-import { useAuth } from "@/context/AuthContext";
 
 import {
   ChartBarIcon,
   CubeIcon,
   ChatBubbleLeftRightIcon,
-  LinkIcon,
   XMarkIcon,
 } from "@heroicons/react/24/outline";
 
@@ -20,14 +18,6 @@ type Props = {
 
 export default function Sidebar({ onNavigate, onClose }: Props) {
   const path = usePathname();
-  const router = useRouter();
-  const { logout } = useAuth();
-
-  const handleLogout = () => {
-    logout();
-    onNavigate?.();
-    router.push("/login");
-  };
 
   const linkClass = (route: string) =>
     `flex items-center gap-3 rounded-md px-4 py-2.5 mb-2 text-sm font-semibold transition lg:px-6 lg:py-3 lg:text-base
@@ -87,25 +77,7 @@ export default function Sidebar({ onNavigate, onClose }: Props) {
           <ChatBubbleLeftRightIcon className={iconClass("/chat")} />
           Chat IA
         </Link>
-
-        <Link
-          href="/login"
-          onClick={onNavigate}
-          className={linkClass("/login")}
-        >
-          <LinkIcon className={iconClass("/login")} />
-          Login
-        </Link>
       </nav>
-
-      {/* Cerrar sesión */}
-      <button
-        type="button"
-        onClick={handleLogout}
-        className="mt-4 flex w-full items-center gap-2 rounded-md border border-transparent px-4 py-2.5 text-sm font-semibold text-red-400 transition hover:border-red-500/50 hover:bg-red-500/20 lg:px-6 lg:py-3"
-      >
-        <span>🚪</span> Cerrar sesión
-      </button>
 
       {/* Footer */}
       <div className="mt-auto pt-6 text-xs text-naranja2 opacity-70 lg:text-sm">
