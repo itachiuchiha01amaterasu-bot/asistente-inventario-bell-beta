@@ -123,6 +123,15 @@ export default function Chat() {
         </div>
       )}
 
+      {!soloConsulta && (
+        <p className="rounded-lg border border-[#2a2a2a] bg-[#141414] px-3 py-2 text-xs leading-relaxed text-gray-400 sm:px-4 sm:text-sm">
+          Para las fechas escribe el día completo, por ejemplo{" "}
+          <span className="font-semibold text-orange-300">20/12/2026</span>.
+          Ejemplo: «Agrega 10 unidades de leche Bell de 1 litro, vence el
+          20/12/2026».
+        </p>
+      )}
+
       {/* Contenedor del chat */}
       <div
         ref={chatRef}

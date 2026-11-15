@@ -37,17 +37,16 @@ def normalizar_fecha(valor):
     if not valor or str(valor).lower() in ["-", "por definir", "none", "null"]:
         return None
 
-    try:
-        if "-" in valor and len(valor.split("-")[0]) == 2:
-            d, m, y = valor.split("-")
-            return date(int(y), int(m), int(d))
-    except:
-        pass
+    texto = str(valor).strip()
 
-    try:
-        return datetime.strptime(valor, "%Y-%m-%d").date()
-    except:
-        return None
+    # Acepta 2026-12-20, 20/12/2026, 20-12-2026 y años de dos cifras.
+    for formato in ("%Y-%m-%d", "%d/%m/%Y", "%d-%m-%Y", "%d/%m/%y", "%d-%m-%y"):
+        try:
+            return datetime.strptime(texto, formato).date()
+        except (TypeError, ValueError):
+            continue
+
+    return None
 
 
 def obtener_o_crear_categoria(nombre):
@@ -337,9 +336,15 @@ def ejecutar_accion(contrato):
         batch_info = contrato.get("batch", {})
 
         if valor in ["Por definir", None, ""]:
+            if campo == "expiration_date":
+                return (
+                    "Necesito la fecha de vencimiento. "
+                    "Escríbela como dd/mm/aaaa (ej: 20/12/2026)."
+                )
             return "Necesito un valor para editar ese campo."
 
         regenerar_sku_flag = False
+        lote_editado = None
 
         if campo == "brand":
             nueva_marca = obtener_o_crear_marca(valor)
@@ -362,11 +367,36 @@ def ejecutar_accion(contrato):
             regenerar_sku_flag = True
 
         elif campo == "expiration_date":
+            fecha_nueva = normalizar_fecha(valor)
+            if not fecha_nueva:
+                return (
+                    "No entendí la fecha. "
+                    "Escríbela como dd/mm/aaaa (ej: 20/12/2026)."
+                )
+
             lote_id = batch_info.get("batch_id")
-            lote = InventoryBatch.query.get(lote_id)
-            if not lote:
-                return "No se encontró el lote indicado."
-            lote.expiration_date = valor
+            if lote_id:
+                lote = InventoryBatch.query.get(lote_id)
+            else:
+                lotes = list(variante.batches)
+                if len(lotes) == 1:
+                    lote = lotes[0]
+                elif len(lotes) > 1:
+                    detalle = ", ".join(f"#{l.id}" for l in lotes)
+                    return (
+                        f"{variante.product.name} tiene varios lotes: {detalle}. "
+                        f"Indica cuál, por ejemplo: "
+                        f"'cambia el vencimiento del lote {lotes[0].id} "
+                        f"al 20/12/2026'."
+                    )
+                else:
+                    return "Ese producto no tiene lotes registrados."
+
+            if not lote or lote.variant_id != variante.id:
+                return "No se encontró el lote indicado para ese producto."
+
+            lote.expiration_date = fecha_nueva
+            lote_editado = lote
 
 
         elif campo == "batch_quantity":
@@ -389,6 +419,13 @@ def ejecutar_accion(contrato):
             )
 
         db.session.commit()
+
+        if campo == "expiration_date" and lote_editado:
+            return (
+                f"Listo. El lote #{lote_editado.id} de "
+                f"{variante.product.name} ahora vence el "
+                f"{lote_editado.expiration_date.strftime('%d/%m/%Y')}."
+            )
 
         return (
             f"Edición completada para:\n"

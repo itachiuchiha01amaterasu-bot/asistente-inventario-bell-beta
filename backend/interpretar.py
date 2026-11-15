@@ -3,7 +3,7 @@ import os
 import re
 import time
 import unicodedata
-from datetime import datetime
+from datetime import date, datetime
 
 from dotenv import load_dotenv
 from openai import OpenAI
@@ -51,6 +51,72 @@ _FRASES_CONSULTA = (
     "existencias de", "disponible de",
 )
 
+# Fechas: 20/12/2026, 20-12-2026, 20/12/26 y 2026-12-20.
+_RE_FECHA = re.compile(
+    r"\b(\d{1,2})[/-](\d{1,2})[/-](\d{2,4})\b"
+    r"|\b(\d{4})-(\d{1,2})-(\d{1,2})\b"
+)
+
+# "fecha de vencimiento" / "fecha de caducidad" es una edición, aunque
+# el mensaje empiece con "agrega" o "ponle".
+_RE_FECHA_VENCIMIENTO = re.compile(
+    r"\b(vencimiento|caducidad|caduca|caducan|vence|vencen)\b"
+)
+
+
+def extraer_fecha(texto):
+    """Devuelve la primera fecha válida del texto como date, o None."""
+    for coincidencia in _RE_FECHA.finditer(str(texto or "")):
+        if coincidencia.group(1):
+            dia, mes, anio = (
+                int(coincidencia.group(1)),
+                int(coincidencia.group(2)),
+                int(coincidencia.group(3)),
+            )
+            if anio < 100:
+                anio += 2000
+        else:
+            anio, mes, dia = (
+                int(coincidencia.group(4)),
+                int(coincidencia.group(5)),
+                int(coincidencia.group(6)),
+            )
+
+        try:
+            return date(anio, mes, dia)
+        except ValueError:
+            continue
+
+    return None
+
+
+def _aplicar_fecha_vencimiento(contrato, mensaje, texto, lote_id):
+    """Fuerza la edición de vencimiento cuando el mensaje lo pide con fecha.
+
+    No depende del modelo: si el texto dice "vence el 20/12/2026", ese dato
+    manda sobre lo que haya devuelto la IA.
+    """
+    if contrato.get("action") != "edit":
+        return contrato
+
+    if not _RE_FECHA_VENCIMIENTO.search(texto):
+        return contrato
+
+    fecha = extraer_fecha(mensaje)
+    if not fecha:
+        return contrato
+
+    contrato.setdefault("changes", {})
+    contrato["changes"]["field"] = "expiration_date"
+    contrato["changes"]["value"] = fecha.isoformat()
+
+    contrato.setdefault("batch", {})
+    contrato["batch"]["expiration_date"] = fecha.isoformat()
+    if lote_id:
+        contrato["batch"]["batch_id"] = lote_id
+
+    return contrato
+
 
 def _sin_acentos(texto):
     normalizado = unicodedata.normalize("NFD", texto)
@@ -83,6 +149,15 @@ def detectar_intencion(mensaje):
 
     for accion, verbos in _VERBOS_ESCRITURA:
         if primera in verbos:
+            # "agrega/ponle la fecha de vencimiento..." es una edición,
+            # no un producto nuevo.
+            if (
+                accion == "add"
+                and "fecha" in texto
+                and _RE_FECHA_VENCIMIENTO.search(texto)
+            ):
+                return "edit"
+
             # "agrega más leche" / "ponle más arroz" significa sumar stock
             # a una variante existente, no crear un producto nuevo.
             if accion == "add" and re.search(r"\bmas\b", texto):
@@ -389,8 +464,19 @@ CONTEXTO:
 
         if lote_id_detectado:
             contrato["batch"]["batch_id"] = lote_id_detectado
-            if contrato["action"] == "edit":
+            # Solo forzar cantidad si el mensaje habla de cantidad/stock.
+            # Antes cualquier "lote 3" cambiaba el campo a cantidad y rompía
+            # la edición de la fecha de vencimiento.
+            if contrato["action"] == "edit" and re.search(
+                r"\b(cantidad|unidades|stock|existencias)\b", texto
+            ):
                 contrato["changes"]["field"] = "batch_quantity"
+
+        # Las fechas dichas por el usuario mandan sobre la interpretación
+        # del modelo (y no gastan una llamada extra).
+        contrato = _aplicar_fecha_vencimiento(
+            contrato, mensaje, texto, lote_id_detectado
+        )
 
         fecha = str(contrato["batch"].get("arrival_date", "")).strip()
         if "-" in fecha and len(fecha.split("-")[0]) == 4:
