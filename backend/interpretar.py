@@ -430,6 +430,30 @@ Contrato JSON obligatorio:
   "option": null
 }}
 
+REGLAS DE ALTA (action "add"):
+- Completa target.product_name, brand (marca), category (rubro),
+  type_variety (variedad), content_value y content_unit.
+- En product_name escribe SOLO el nombre del producto, sin repetir la marca,
+  el rubro, la variedad ni el contenido.
+- batch.quantity = unidades que ingresan.
+- batch.arrival_date = fecha de ingreso.
+- batch.expiration_date = fecha de vencimiento.
+
+REGLAS DE EDICIÓN (action "edit"):
+- changes.field debe ser EXACTAMENTE uno de estos valores:
+  "brand" (marca), "category" (rubro), "product_name" (nombre),
+  "type_variety" (variedad), "content" (contenido),
+  "batch_quantity" (cantidad de un lote) o "expiration_date" (vencimiento).
+- changes.value lleva el valor nuevo exacto. Para content usa "1.5 L" o "500 g".
+  Para fechas usa el formato AAAA-MM-DD.
+- Si el mensaje menciona un lote ("lote 3"), copia ese número en batch.batch_id.
+- Para sumar unidades ("suma 5", "agrega 5 más"), usa action "edit",
+  changes.field "batch_quantity" y changes.value con la cantidad a sumar.
+
+REGLAS DE CONSULTA (action "query"):
+- target.product_name y target.brand identifican el producto; deja en null
+  los campos que el usuario no mencione.
+
 INTERPRETA ESTE MENSAJE:
 {mensaje}
 
