@@ -65,13 +65,16 @@ _RE_FECHA_VENCIMIENTO = re.compile(
 )
 
 
-def extraer_fecha(texto, cerca_de=None):
-    """Devuelve una fecha válida del texto, o None.
+# Palabras que suelen acompañar la fecha de ingreso al depósito.
+_RE_FECHA_INGRESO = re.compile(
+    r"\b(ingres[oó]|ingresa|ingresar|ingreso|llega|lleg[oó]|entra|entr[oó]|"
+    r"recib[oi]|recibir|recepci[oó]n|compra)\b",
+    re.IGNORECASE,
+)
 
-    Si se indica ``cerca_de`` (posición del texto), se prefiere la primera
-    fecha que aparezca a partir de ahí. Así, en "ingresó el 10/01/2026 y
-    vence el 20/12/2026", el vencimiento es la segunda fecha.
-    """
+
+def _fechas_con_posicion(texto):
+    """Devuelve [(posición, fecha)] de todas las fechas válidas del texto."""
     encontradas = []
 
     for coincidencia in _RE_FECHA.finditer(str(texto or "")):
@@ -95,7 +98,19 @@ def extraer_fecha(texto, cerca_de=None):
         except ValueError:
             continue
 
-        encontradas.append((coincidencia, fecha))
+        encontradas.append((coincidencia.start(), fecha))
+
+    return encontradas
+
+
+def extraer_fecha(texto, cerca_de=None):
+    """Devuelve una fecha válida del texto, o None.
+
+    Si se indica ``cerca_de`` (posición del texto), se prefiere la primera
+    fecha que aparezca a partir de ahí. Así, en "ingresó el 10/01/2026 y
+    vence el 20/12/2026", el vencimiento es la segunda fecha.
+    """
+    encontradas = _fechas_con_posicion(texto)
 
     if not encontradas:
         return None
@@ -103,45 +118,75 @@ def extraer_fecha(texto, cerca_de=None):
     if cerca_de is None:
         return encontradas[0][1]
 
-    posteriores = [f for f in encontradas if f[0].start() >= cerca_de]
+    posteriores = [f for f in encontradas if f[0] >= cerca_de]
     if posteriores:
         return posteriores[0][1]
 
     return encontradas[-1][1]
 
 
-def _aplicar_fecha_vencimiento(contrato, mensaje, texto, lote_id):
-    """Fuerza la fecha de vencimiento cuando el mensaje la menciona.
+def _aplicar_fechas(contrato, mensaje, texto, lote_id):
+    """Fuerza las fechas de ingreso y vencimiento dichas por el usuario.
 
-    No depende del modelo: si el texto dice "vence el 20/12/2026", ese dato
-    manda sobre lo que haya devuelto la IA, tanto al agregar como al editar.
+    No depende del modelo: si el texto dice "ingresó el 10/01/2026 y vence
+    el 20/12/2026", esos datos mandan sobre lo que devuelva la IA.
     """
     accion = contrato.get("action")
     if accion not in ("edit", "add"):
         return contrato
 
-    mencion = _RE_FECHA_VENCIMIENTO.search(texto)
-    if not mencion:
+    fechas = _fechas_con_posicion(mensaje)
+    if not fechas:
         return contrato
 
-    # Si el mensaje trae dos fechas (ingreso y vencimiento), la que está
-    # después de "vence"/"caduca" es la de vencimiento.
-    fecha = extraer_fecha(mensaje, cerca_de=mencion.end())
-    if not fecha:
+    mencion_vencimiento = _RE_FECHA_VENCIMIENTO.search(texto)
+    fecha_vencimiento = None
+    if mencion_vencimiento:
+        # La fecha de vencimiento es la primera que aparece después de
+        # "vence"/"caduca"; si no hay ninguna, se usa la última del mensaje.
+        posteriores = [f for f in fechas if f[0] >= mencion_vencimiento.end()]
+        fecha_vencimiento = posteriores[0][1] if posteriores else fechas[-1][1]
+
+    if accion == "edit":
+        if not fecha_vencimiento:
+            return contrato
+
+        contrato.setdefault("changes", {})
+        contrato["changes"]["field"] = "expiration_date"
+        contrato["changes"]["value"] = fecha_vencimiento.isoformat()
+
+        contrato.setdefault("batch", {})
+        contrato["batch"]["expiration_date"] = fecha_vencimiento.isoformat()
+        if lote_id:
+            contrato["batch"]["batch_id"] = lote_id
+
         return contrato
 
-    if accion == "add":
-        contrato.setdefault("batch", {})["expiration_date"] = fecha.isoformat()
-        return contrato
+    # Alta: vencimiento.
+    if fecha_vencimiento:
+        contrato.setdefault("batch", {})["expiration_date"] = (
+            fecha_vencimiento.isoformat()
+        )
 
-    contrato.setdefault("changes", {})
-    contrato["changes"]["field"] = "expiration_date"
-    contrato["changes"]["value"] = fecha.isoformat()
+    # Alta: fecha de ingreso. Se busca la fecha junto a "ingresó"/"llegó";
+    # si solo se nombró el vencimiento y hay dos fechas, la anterior es el
+    # ingreso.
+    mencion_ingreso = _RE_FECHA_INGRESO.search(texto)
+    fecha_ingreso = None
 
-    contrato.setdefault("batch", {})
-    contrato["batch"]["expiration_date"] = fecha.isoformat()
-    if lote_id:
-        contrato["batch"]["batch_id"] = lote_id
+    if mencion_ingreso:
+        posteriores = [f for f in fechas if f[0] >= mencion_ingreso.end()]
+        if posteriores:
+            fecha_ingreso = posteriores[0][1]
+    elif fecha_vencimiento and mencion_vencimiento and len(fechas) >= 2:
+        anteriores = [f for f in fechas if f[0] < mencion_vencimiento.start()]
+        if anteriores:
+            fecha_ingreso = anteriores[-1][1]
+
+    if fecha_ingreso:
+        contrato.setdefault("batch", {})["arrival_date"] = (
+            fecha_ingreso.isoformat()
+        )
 
     return contrato
 
@@ -536,7 +581,7 @@ CONTEXTO:
 
         # Las fechas dichas por el usuario mandan sobre la interpretación
         # del modelo (y no gastan una llamada extra).
-        contrato = _aplicar_fecha_vencimiento(
+        contrato = _aplicar_fechas(
             contrato, mensaje, texto, lote_id_detectado
         )
 
