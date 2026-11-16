@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useState, useMemo } from "react";
+import { useCallback, useEffect, useState, useMemo } from "react";
 import EditarVariante from "../../components/EditarInv";
-import { PencilSquareIcon } from "@heroicons/react/24/solid";
+import { PencilSquareIcon, TrashIcon } from "@heroicons/react/24/solid";
 import { useAuth } from "@/context/AuthContext";
 import { API_URL } from "@/lib/api";
 
@@ -103,22 +103,50 @@ export default function Inventario() {
 
   const [editando, setEditando] = useState<Variante | null>(null);
   const [formEdit, setFormEdit] = useState<any>({});
-  const { token } = useAuth();
+  const { token, user } = useAuth();
+
+  // Solo admin y super_admin ven y usan editar/eliminar. El backend vuelve
+  // a validarlo, así que ocultarlo no es la única protección.
+  const puedeGestionar = user?.role === "admin" || user?.role === "super_admin";
+
+  const [porEliminar, setPorEliminar] = useState<Variante | null>(null);
+  const [eliminando, setEliminando] = useState(false);
+  const [errorEliminar, setErrorEliminar] = useState<string | null>(null);
+  const [aviso, setAviso] = useState<string | null>(null);
+
+  const recargarInventario = useCallback(async () => {
+    try {
+      const res = await fetch(`${API_URL}/api/inventario`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      if (!res.ok) return;
+
+      const data = await res.json();
+      setProductos(data.productos || []);
+    } catch {
+      // Si falla la recarga se mantiene lo que ya está en pantalla.
+    }
+  }, [token]);
 
   useEffect(() => {
-    fetch(`${API_URL}/api/inventario`, {
-      headers: { Authorization: `Bearer ${token}` },
-    })
-      .then((res) => res.json())
-      .then((data) => {
-        setProductos(data.productos || []);
-        setLoading(false);
-      })
-      .catch(() => {
-        setProductos([]);
-        setLoading(false);
-      });
-  }, [token]);
+    recargarInventario().finally(() => setLoading(false));
+  }, [recargarInventario]);
+
+  // Cerrar el diálogo de eliminar con Escape.
+  useEffect(() => {
+    if (!porEliminar) return;
+
+    const alPresionar = (e: KeyboardEvent) => {
+      if (e.key === "Escape" && !eliminando) {
+        setPorEliminar(null);
+        setErrorEliminar(null);
+      }
+    };
+
+    window.addEventListener("keydown", alPresionar);
+    return () => window.removeEventListener("keydown", alPresionar);
+  }, [porEliminar, eliminando]);
 
   const variantes = useMemo(() => {
     return productos.flatMap((p) =>
@@ -231,6 +259,50 @@ export default function Inventario() {
     }
   }
 
+  async function eliminarProducto() {
+    if (!porEliminar) return;
+
+    const nombre = porEliminar.product_name;
+    setEliminando(true);
+    setErrorEliminar(null);
+
+    try {
+      const res = await fetch(
+        `${API_URL}/api/variantes/${porEliminar.variant_id}`,
+        {
+          method: "DELETE",
+          headers: { Authorization: `Bearer ${token}` },
+        }
+      );
+
+      if (res.status === 401 || res.status === 403) {
+        setErrorEliminar(
+          "Tu cuenta no tiene permiso para eliminar productos del inventario."
+        );
+        return;
+      }
+
+      const data = await res.json().catch(() => ({}));
+
+      if (!res.ok) {
+        setErrorEliminar(
+          data.error || "No se pudo eliminar el producto. Intenta de nuevo."
+        );
+        return;
+      }
+
+      setPorEliminar(null);
+      setAviso(`Se eliminó “${nombre}” del inventario.`);
+      await recargarInventario();
+    } catch {
+      setErrorEliminar(
+        "No se pudo conectar con el servidor. Intenta de nuevo."
+      );
+    } finally {
+      setEliminando(false);
+    }
+  }
+
   if (loading) {
     return (
       <div className="flex min-h-[60vh] items-center justify-center">
@@ -246,6 +318,23 @@ export default function Inventario() {
       <h1 className="text-2xl font-bold tracking-tight text-orange-400 sm:text-3xl lg:text-4xl">
         Inventario
       </h1>
+
+      {aviso && (
+        <div
+          role="status"
+          className="flex items-start justify-between gap-3 rounded-lg border border-green-500/40 bg-green-500/10 px-4 py-3 text-sm text-green-200"
+        >
+          <span className="min-w-0 break-words">{aviso}</span>
+          <button
+            type="button"
+            onClick={() => setAviso(null)}
+            aria-label="Cerrar aviso"
+            className="shrink-0 rounded px-2 py-0.5 text-green-200 transition hover:bg-green-500/20"
+          >
+            ✕
+          </button>
+        </div>
+      )}
 
       <input
         type="text"
@@ -341,6 +430,10 @@ export default function Inventario() {
                   Vencimiento {orden === "fecha_caducidad" && (direccion === "asc" ? "▲" : "▼")}
                 </th>
 
+                {puedeGestionar && (
+                  <th className="whitespace-nowrap p-3 text-right">Acciones</th>
+                )}
+
               </tr>
             </thead>
 
@@ -427,24 +520,44 @@ export default function Inventario() {
                       )}
                     </td>
 
-                    <td className="whitespace-nowrap p-3">
-                      <button
-                        onClick={() => {
-                          setEditando(v);
-                          setFormEdit({
-                            product_name: v.product_name,
-                            category: v.category,
-                            brand: v.brand,
-                            type_variety: v.type_variety,
-                            content_value: v.content_value,
-                            content_unit: v.content_unit,
-                          });
-                        }}
-                        className="text-blue-400 hover:text-blue-300 transition"
-                      >
-                        <PencilSquareIcon className="h-6 w-6" />
-                      </button>
-                    </td>
+                    {puedeGestionar && (
+                      <td className="whitespace-nowrap p-3 text-right">
+                        <div className="flex items-center justify-end gap-2">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setEditando(v);
+                              setFormEdit({
+                                product_name: v.product_name,
+                                category: v.category,
+                                brand: v.brand,
+                                type_variety: v.type_variety,
+                                content_value: v.content_value,
+                                content_unit: v.content_unit,
+                              });
+                            }}
+                            className="rounded p-1 text-blue-400 transition hover:bg-blue-500/10 hover:text-blue-300"
+                            title="Editar producto"
+                            aria-label={`Editar ${v.product_name}`}
+                          >
+                            <PencilSquareIcon className="h-6 w-6" />
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setErrorEliminar(null);
+                              setPorEliminar(v);
+                            }}
+                            className="rounded p-1 text-red-500 transition hover:bg-red-500/10 hover:text-red-400"
+                            title="Eliminar del inventario"
+                            aria-label={`Eliminar ${v.product_name}`}
+                          >
+                            <TrashIcon className="h-6 w-6" />
+                          </button>
+                        </div>
+                      </td>
+                    )}
                   </tr>
                 );
               })}
@@ -461,6 +574,86 @@ export default function Inventario() {
         onClose={() => setEditando(null)}
         onSave={guardarCambios}
       />
+
+      {porEliminar && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="titulo-eliminar"
+        >
+          <div className="w-full max-w-md rounded-xl border border-[#3a3a3a] bg-[#1b1b1b] p-5 shadow-2xl">
+            <div className="flex items-start gap-3">
+              <span className="shrink-0 rounded-full bg-red-500/15 p-2 text-red-400">
+                <TrashIcon className="h-6 w-6" />
+              </span>
+
+              <div className="min-w-0">
+                <h2
+                  id="titulo-eliminar"
+                  className="text-lg font-semibold text-gray-100"
+                >
+                  Eliminar del inventario
+                </h2>
+                <p className="mt-1 text-sm leading-relaxed text-gray-400">
+                  Se borrarán también sus lotes, fechas y cantidades. Esta
+                  acción no se puede deshacer.
+                </p>
+              </div>
+            </div>
+
+            <div className="mt-4 rounded-lg border border-[#2a2a2a] bg-[#111] p-3 text-sm">
+              <p className="font-semibold text-gray-100">
+                {porEliminar.product_name}
+              </p>
+              <p className="mt-0.5 text-gray-300">
+                {porEliminar.brand} ·{" "}
+                {porEliminar.type_variety || "Sin variedad"} ·{" "}
+                {porEliminar.content_value
+                  ? `${porEliminar.content_value} ${porEliminar.content_unit}`
+                  : "Por definir"}
+              </p>
+              <p className="mt-1 text-gray-500">
+                {porEliminar.total_quantity} unidad(es) ·{" "}
+                {porEliminar.batches.length} lote(s)
+              </p>
+            </div>
+
+            {errorEliminar && (
+              <p
+                role="alert"
+                className="mt-3 rounded bg-red-500/15 p-3 text-sm text-red-300"
+              >
+                {errorEliminar}
+              </p>
+            )}
+
+            <div className="mt-5 flex flex-col gap-2 sm:flex-row sm:justify-end">
+              <button
+                type="button"
+                autoFocus
+                onClick={() => {
+                  setPorEliminar(null);
+                  setErrorEliminar(null);
+                }}
+                disabled={eliminando}
+                className="rounded-lg border border-[#3a3a3a] px-4 py-2 text-sm font-semibold text-gray-300 transition hover:bg-[#2a2a2a] disabled:opacity-60"
+              >
+                Cancelar
+              </button>
+
+              <button
+                type="button"
+                onClick={eliminarProducto}
+                disabled={eliminando}
+                className="rounded-lg bg-red-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-red-700 disabled:opacity-60"
+              >
+                {eliminando ? "Eliminando..." : "Sí, eliminar"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

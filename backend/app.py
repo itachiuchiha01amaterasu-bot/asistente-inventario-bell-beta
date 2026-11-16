@@ -387,6 +387,56 @@ def editar_variante(variant_id):
         return jsonify({"error": "Error editando variante"}), 500
 
 
+@app.route("/api/variantes/<int:variant_id>", methods=["DELETE"])
+@rol_requerido("super_admin", "admin")
+def eliminar_variante(variant_id):
+    """Elimina una variante del inventario y todos sus lotes.
+
+    Solo admin y super_admin. Si el producto se queda sin variantes también
+    se elimina, para no dejar filas vacías en el catálogo. Igual que el
+    borrado por chat, no se puede deshacer.
+    """
+    variante = db.session.get(ProductVariant, variant_id)
+    if not variante:
+        return jsonify({"error": "Ese producto ya no existe en el inventario"}), 404
+
+    producto = variante.product
+    producto_id = variante.product_id
+
+    detalle = {
+        "producto": producto.name if producto else None,
+        "marca": variante.brand.name if variante.brand else "Sin marca",
+        "variedad": variante.type_variety or "Sin variedad",
+        "contenido": (
+            f"{variante.content_value:g} {variante.content_unit}"
+            if variante.content_value is not None and variante.content_unit
+            else "Por definir"
+        ),
+        "lotes": len(variante.batches),
+    }
+
+    try:
+        # El cascade de la relación borra también sus lotes.
+        db.session.delete(variante)
+        db.session.flush()
+
+        if ProductVariant.query.filter_by(product_id=producto_id).count() == 0:
+            producto_restante = db.session.get(Product, producto_id)
+            if producto_restante:
+                db.session.delete(producto_restante)
+
+        db.session.commit()
+    except Exception as e:
+        db.session.rollback()
+        print("Error en DELETE /api/variantes:", e)
+        return jsonify({"error": "No se pudo eliminar el producto"}), 500
+
+    return jsonify({
+        "mensaje": "Producto eliminado del inventario",
+        "detalle": detalle,
+    })
+
+
 @app.route("/asistente_ia", methods=["POST"])
 @rol_requerido("super_admin", "admin", "user")
 def asistente_ia():
