@@ -258,7 +258,11 @@ def resolver_variante(target, unico=False):
         categoria_obj = Category.query.filter(Category.name.ilike(f"%{categoria}%")).first()
         if not categoria_obj:
             return None, "El rubro indicado no existe."
-        variantes = variantes.filter_by(category_id=categoria_obj.id)
+        # El rubro está en el producto, no en la variante: se filtra por la
+        # relación para no inventar una columna que no existe.
+        variantes = variantes.join(Product).filter(
+            Product.category_id == categoria_obj.id
+        )
 
     if variedad:
         variantes = variantes.filter(ProductVariant.type_variety.ilike(f"%{variedad}%"))
