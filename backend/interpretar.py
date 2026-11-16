@@ -31,6 +31,7 @@ _VERBOS_ESCRITURA = (
     ("edit", (
         "edita", "editar", "cambia", "cambiar", "actualiza", "actualizar",
         "modifica", "modificar", "renombra", "renombrar", "corrige", "corregir",
+        "suma", "sumar", "sumale", "súmale", "incrementa", "incrementar",
     )),
     ("add", (
         "agrega", "agregar", "anade", "anadir", "pon", "ponle", "registra",
@@ -64,8 +65,15 @@ _RE_FECHA_VENCIMIENTO = re.compile(
 )
 
 
-def extraer_fecha(texto):
-    """Devuelve la primera fecha válida del texto como date, o None."""
+def extraer_fecha(texto, cerca_de=None):
+    """Devuelve una fecha válida del texto, o None.
+
+    Si se indica ``cerca_de`` (posición del texto), se prefiere la primera
+    fecha que aparezca a partir de ahí. Así, en "ingresó el 10/01/2026 y
+    vence el 20/12/2026", el vencimiento es la segunda fecha.
+    """
+    encontradas = []
+
     for coincidencia in _RE_FECHA.finditer(str(texto or "")):
         if coincidencia.group(1):
             dia, mes, anio = (
@@ -83,27 +91,47 @@ def extraer_fecha(texto):
             )
 
         try:
-            return date(anio, mes, dia)
+            fecha = date(anio, mes, dia)
         except ValueError:
             continue
 
-    return None
+        encontradas.append((coincidencia, fecha))
+
+    if not encontradas:
+        return None
+
+    if cerca_de is None:
+        return encontradas[0][1]
+
+    posteriores = [f for f in encontradas if f[0].start() >= cerca_de]
+    if posteriores:
+        return posteriores[0][1]
+
+    return encontradas[-1][1]
 
 
 def _aplicar_fecha_vencimiento(contrato, mensaje, texto, lote_id):
-    """Fuerza la edición de vencimiento cuando el mensaje lo pide con fecha.
+    """Fuerza la fecha de vencimiento cuando el mensaje la menciona.
 
     No depende del modelo: si el texto dice "vence el 20/12/2026", ese dato
-    manda sobre lo que haya devuelto la IA.
+    manda sobre lo que haya devuelto la IA, tanto al agregar como al editar.
     """
-    if contrato.get("action") != "edit":
+    accion = contrato.get("action")
+    if accion not in ("edit", "add"):
         return contrato
 
-    if not _RE_FECHA_VENCIMIENTO.search(texto):
+    mencion = _RE_FECHA_VENCIMIENTO.search(texto)
+    if not mencion:
         return contrato
 
-    fecha = extraer_fecha(mensaje)
+    # Si el mensaje trae dos fechas (ingreso y vencimiento), la que está
+    # después de "vence"/"caduca" es la de vencimiento.
+    fecha = extraer_fecha(mensaje, cerca_de=mencion.end())
     if not fecha:
+        return contrato
+
+    if accion == "add":
+        contrato.setdefault("batch", {})["expiration_date"] = fecha.isoformat()
         return contrato
 
     contrato.setdefault("changes", {})
@@ -462,6 +490,16 @@ CONTEXTO:
         if intencion:
             contrato["action"] = intencion
 
+        texto_norm = _normalizar_texto(mensaje)
+
+        # "agrega más leche" / "suma 5 unidades" suma al lote existente en
+        # vez de reemplazar la cantidad.
+        if contrato["action"] == "edit" and (
+            re.search(r"\bmas\b", texto_norm)
+            or texto_norm.startswith(("suma ", "sumale ", "incrementa "))
+        ):
+            contrato.setdefault("changes", {}).setdefault("extra", {})["sumar"] = True
+
         if lote_id_detectado:
             contrato["batch"]["batch_id"] = lote_id_detectado
             # Solo forzar cantidad si el mensaje habla de cantidad/stock.
@@ -524,22 +562,68 @@ CONTEXTO:
 
         pn = contrato["target"].get("product_name")
         if pn:
-            pn = pn.lower()
-            pn = pn.replace("marca", "")
-            pn = pn.replace("del rubro", "")
-            pn = pn.replace("rubro", "")
-            pn = pn.replace("contenido", "")
-            pn = pn.replace("variedad", "")
-            pn = pn.replace("tipo", "")
+            pn = str(pn).strip().lower()
 
-            palabras = [p for p in re.findall(r"[a-záéíóúñ]+", pn) if p not in ["la", "el", "de", "del"]]
-            if palabras:
-                contrato["target"]["product_name"] = palabras[0].capitalize()
+            # El modelo a veces incluye etiquetas dentro del nombre.
+            pn = re.sub(
+                r"\b(?:del\s+rubro|rubro|categor[ií]a|marca|variedad|tipo|contenido)\b",
+                " ",
+                pn,
+            )
+
+            # Y a veces repite la marca, el rubro o la variedad en el nombre.
+            for campo in ("brand", "category", "type_variety"):
+                valor = str(contrato["target"].get(campo) or "").strip().lower()
+                if valor:
+                    pn = re.sub(rf"\b{re.escape(valor)}\b", " ", pn)
+
+            # Quitar el contenido ("1 litro", "500 g") si vino en el nombre.
+            contenido_valor = contrato["target"].get("content_value")
+            contenido_unidad = str(
+                contrato["target"].get("content_unit") or ""
+            ).lower()
+
+            # "1.0" y "1" son el mismo contenido: se comparan igual.
+            if contenido_valor is not None:
+                try:
+                    numero_contenido = float(contenido_valor)
+                    if numero_contenido == int(numero_contenido):
+                        contenido_valor = int(numero_contenido)
+                except (TypeError, ValueError):
+                    pass
+
+            if contenido_valor is not None and contenido_unidad:
+                unidades = {
+                    "l": r"(?:l|lt|litro|litros)",
+                    "ml": r"(?:ml|mililitro|mililitros)",
+                    "kg": r"(?:kg|kilo|kilos|kilogramo|kilogramos)",
+                    "g": r"(?:g|gr|gramo|gramos)",
+                }.get(contenido_unidad)
+                if unidades:
+                    pn = re.sub(
+                        rf"\b{re.escape(str(contenido_valor))}\s*{unidades}\b",
+                        " ",
+                        pn,
+                    )
+
+            pn = re.sub(r"\s+", " ", pn).strip(" .,;:¿?¡!")
+            pn = re.sub(r"^(?:el|la|los|las|un|una|unos|unas)\s+", "", pn)
+            pn = re.sub(r"\s+(?:de|del|la|el|los|las)\s*$", "", pn)
+            pn = pn.strip(" .,;:¿?¡!")
+
+            if pn:
+                contrato["target"]["product_name"] = pn[0].upper() + pn[1:]
 
         if contrato["action"] == "delete":
-            match_qty = re.search(r"(\d+)", mensaje)
-            if match_qty:
-                contrato["batch"]["quantity"] = int(match_qty.group(1))
+            # "elimina el lote 6" no significa borrar 6 unidades: se quita
+            # la referencia al lote antes de buscar una cantidad.
+            sin_lote = re.sub(
+                r"\blote\s*#?\s*\d+\b", " ", mensaje, flags=re.IGNORECASE
+            )
+            match_qty = re.search(r"(\d+)", sin_lote)
+            contrato["batch"]["quantity"] = (
+                int(match_qty.group(1)) if match_qty else 0
+            )
 
         return contrato
 

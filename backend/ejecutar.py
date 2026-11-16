@@ -1,3 +1,4 @@
+import re
 import unicodedata
 
 from datetime import datetime, date
@@ -442,17 +443,51 @@ def ejecutar_accion(contrato):
 
         elif campo == "category":
             nueva_cat = obtener_o_crear_categoria(valor)
-            variante.category_id = nueva_cat.id
+            # El rubro pertenece al producto, no a la variante.
+            variante.product.category_id = nueva_cat.id
             regenerar_sku_flag = True
 
+        elif campo == "product_name":
+            nuevo_nombre = str(valor).strip()
+            if not nuevo_nombre:
+                return "Necesito el nuevo nombre del producto."
+
+            variante.product.name = nuevo_nombre
+
+            # El SKU incluye el nombre: se actualiza en todas las variantes.
+            for hermana in variante.product.variants:
+                hermana.sku_code = generar_sku(
+                    hermana.product,
+                    hermana.brand,
+                    hermana.type_variety or "",
+                    hermana.content_value,
+                    hermana.content_unit,
+                )
+
+            regenerar_sku_flag = False
+
         elif campo == "type_variety":
-            variante.type_variety = valor
+            variante.type_variety = str(valor).strip()
             regenerar_sku_flag = True
 
         elif campo == "content":
-            partes = valor.split()
-            variante.content_value = float(partes[0])
-            variante.content_unit = partes[1]
+            coincidencia = re.match(
+                r"^\s*(\d+(?:[.,]\d+)?)\s*([a-zA-Z]+)?\s*$", str(valor)
+            )
+            if not coincidencia:
+                return (
+                    "No entendí el contenido. "
+                    "Escríbelo como '1.5 L' o '500 g'."
+                )
+
+            numero = float(coincidencia.group(1).replace(",", "."))
+            unidad = coincidencia.group(2) or variante.content_unit
+            if not unidad:
+                return "Indica la unidad del contenido: L, ml, kg o g."
+
+            numero, unidad = normalizar_contenido(numero, unidad)
+            variante.content_value = numero
+            variante.content_unit = unidad
             regenerar_sku_flag = True
 
         elif campo == "expiration_date":
@@ -490,21 +525,47 @@ def ejecutar_accion(contrato):
 
         elif campo == "batch_quantity":
             lote_id = batch_info.get("batch_id")
-            lote = InventoryBatch.query.get(lote_id)
-            if not lote:
-                return f"No existe el lote con ID {lote_id}."
-            lote.quantity = int(valor)
+            lotes = list(variante.batches)
+
+            if lote_id:
+                lote = next((l for l in lotes if l.id == lote_id), None)
+            elif len(lotes) == 1:
+                lote = lotes[0]
+            elif len(lotes) > 1:
+                detalle = ", ".join(f"#{l.id}" for l in lotes)
+                return (
+                    f"{variante.product.name} tiene varios lotes: {detalle}. "
+                    f"Indica cuál, por ejemplo: "
+                    f"'cambia la cantidad del lote {lotes[0].id} a 15'."
+                )
+            else:
+                return "Ese producto no tiene lotes registrados."
+
+            if not lote or lote.variant_id != variante.id:
+                return "No se encontró el lote indicado para ese producto."
+
+            try:
+                cantidad = int(float(valor))
+            except (TypeError, ValueError):
+                return "Necesito una cantidad entera, por ejemplo: 15."
+
+            if cantidad < 0:
+                return "La cantidad no puede ser negativa."
+
+            sumar = bool(changes.get("extra", {}).get("sumar"))
+            lote.quantity = lote.quantity + cantidad if sumar else cantidad
+            lote_editado = lote
 
         else:
             return f"El campo '{campo}' no es válido."
 
         if regenerar_sku_flag:
             variante.sku_code = generar_sku(
-                variante.product.name,
-                variante.brand.name if variante.brand else "",
+                variante.product,
+                variante.brand,
                 variante.type_variety or "",
                 variante.content_value,
-                variante.content_unit
+                variante.content_unit,
             )
 
         db.session.commit()
@@ -514,6 +575,13 @@ def ejecutar_accion(contrato):
                 f"Listo. El lote #{lote_editado.id} de "
                 f"{variante.product.name} ahora vence el "
                 f"{lote_editado.expiration_date.strftime('%d/%m/%Y')}."
+            )
+
+        if campo == "batch_quantity" and lote_editado:
+            return (
+                f"Listo. El lote #{lote_editado.id} de "
+                f"{variante.product.name} ahora tiene "
+                f"{lote_editado.quantity} unidades."
             )
 
         return (
@@ -556,6 +624,61 @@ def ejecutar_accion(contrato):
                     db.session.delete(producto)
 
             db.session.commit()
+
+        # Con un lote indicado ("elimina el lote 6") se borra solo ese lote,
+        # o se descuentan unidades de ese lote.
+        lote_objetivo_id = batch.get("batch_id")
+
+        if lote_objetivo_id:
+            lote = db.session.get(InventoryBatch, lote_objetivo_id)
+            if not lote or lote.variant_id != variante.id:
+                return "No se encontró el lote indicado para ese producto."
+
+            unidades_antes = lote.quantity
+            if cantidad <= 0 or cantidad >= unidades_antes:
+                db.session.delete(lote)
+                db.session.flush()
+                borrado = True
+            else:
+                lote.quantity = unidades_antes - cantidad
+                db.session.flush()
+                borrado = False
+
+            total = (
+                db.session.query(
+                    db.func.coalesce(db.func.sum(InventoryBatch.quantity), 0)
+                )
+                .filter(InventoryBatch.variant_id == variante.id)
+                .scalar()
+            )
+
+            if total == 0:
+                eliminar_variante_y_producto_si_queda_vacio()
+                producto_existe = db.session.get(Product, producto_id) is not None
+                final = (
+                    "La variante fue eliminada."
+                    if producto_existe
+                    else "La variante y el producto fueron eliminados."
+                )
+                return (
+                    f"Listo. Se eliminó el lote #{lote_objetivo_id} de "
+                    f"{nombre} y ya no queda stock. {final}"
+                )
+
+            db.session.commit()
+
+            if borrado:
+                return (
+                    f"Listo. Se eliminó el lote #{lote_objetivo_id} de "
+                    f"{nombre} ({unidades_antes} unidades). "
+                    f"Quedan {total} unidades en otros lotes."
+                )
+
+            return (
+                f"Listo. Se descontaron {cantidad} unidades del lote "
+                f"#{lote_objetivo_id} de {nombre}. "
+                f"Quedan {total} unidades en total."
+            )
 
         # Sin cantidad explícita ("elimina petipuas") se elimina todo.
         # Con cantidad ("elimina 2 unidades de leche") solo se descuenta stock.
