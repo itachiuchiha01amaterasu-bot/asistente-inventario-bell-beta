@@ -1,7 +1,36 @@
+import unicodedata
+
 from datetime import datetime, date
 from backend.models import db, Category, Brand, Product, ProductVariant, InventoryBatch
 
 opciones_pendientes = {}
+
+
+def clave_nombre(texto):
+    """Clave para comparar nombres sin distinguir mayúsculas, tildes ni espacios.
+
+    "Leche", "leche" y "  LECHE " deben ser el mismo producto: si no, cada
+    variante escrita de otra forma creaba una fila nueva en el inventario.
+    """
+    if texto is None:
+        return ""
+
+    limpio = unicodedata.normalize("NFKD", str(texto))
+    limpio = "".join(c for c in limpio if not unicodedata.combining(c))
+    return " ".join(limpio.lower().split())
+
+
+def _buscar_por_nombre(modelo, nombre):
+    """Devuelve la primera fila cuyo nombre coincida, sin distinguir forma."""
+    clave = clave_nombre(nombre)
+    if not clave:
+        return None
+
+    for fila in modelo.query.order_by(modelo.id.asc()).all():
+        if clave_nombre(fila.name) == clave:
+            return fila
+
+    return None
 
 def normalizar_cantidad(valor):
     try:
@@ -50,10 +79,11 @@ def normalizar_fecha(valor):
 
 
 def obtener_o_crear_categoria(nombre):
+    nombre = (nombre or "").strip()
     if not nombre or nombre == "Por definir":
         nombre = "General"
 
-    cat = Category.query.filter_by(name=nombre).first()
+    cat = _buscar_por_nombre(Category, nombre)
     if not cat:
         cat = Category(name=nombre)
         db.session.add(cat)
@@ -62,10 +92,11 @@ def obtener_o_crear_categoria(nombre):
 
 
 def obtener_o_crear_marca(nombre):
+    nombre = (nombre or "").strip()
     if not nombre or nombre == "Por definir":
         nombre = "Sin marca"
 
-    marca = Brand.query.filter_by(name=nombre).first()
+    marca = _buscar_por_nombre(Brand, nombre)
     if not marca:
         marca = Brand(name=nombre)
         db.session.add(marca)
@@ -74,11 +105,27 @@ def obtener_o_crear_marca(nombre):
 
 
 def obtener_o_crear_producto(nombre, categoria):
-    prod = Product.query.filter_by(name=nombre, category_id=categoria.id).first()
-    if not prod:
-        prod = Product(name=nombre, category_id=categoria.id)
-        db.session.add(prod)
-        db.session.commit()
+    nombre = (nombre or "").strip()
+
+    prod = _buscar_por_nombre(Product, nombre)
+    if prod and prod.category_id == categoria.id:
+        return prod
+
+    # Mismo nombre pero en otro rubro: es otro producto.
+    if prod:
+        prod = (
+            Product.query
+            .filter_by(category_id=categoria.id)
+            .filter(Product.name.ilike(nombre))
+            .order_by(Product.id.asc())
+            .first()
+        )
+        if prod:
+            return prod
+
+    prod = Product(name=nombre, category_id=categoria.id)
+    db.session.add(prod)
+    db.session.commit()
     return prod
 
 
@@ -100,17 +147,48 @@ def generar_sku(producto, marca, tipo_variedad, contenido_valor, contenido_unida
 def obtener_o_crear_variante(producto, marca, tipo_variedad, contenido_valor, contenido_unidad):
     contenido_valor, contenido_unidad = normalizar_contenido(contenido_valor, contenido_unidad)
 
-    tipo_variedad = tipo_variedad or ""
+    tipo_variedad = (tipo_variedad or "").strip()
+    clave_variedad = clave_nombre(tipo_variedad)
 
-    variante = ProductVariant.query.filter_by(
-        product_id=producto.id,
-        brand_id=marca.id,
-        content_value=contenido_valor,
-        content_unit=contenido_unidad
-    ).first()
+    candidatas = (
+        ProductVariant.query
+        .filter_by(
+            product_id=producto.id,
+            brand_id=marca.id,
+            content_value=contenido_valor,
+            content_unit=contenido_unidad,
+        )
+        .order_by(ProductVariant.id.asc())
+        .all()
+    )
+
+    variante = None
+
+    if clave_variedad:
+        # Misma variedad (aunque cambien mayúsculas o tildes).
+        variante = next(
+            (v for v in candidatas if clave_nombre(v.type_variety) == clave_variedad),
+            None,
+        )
+
+        if not variante:
+            # Si existe una variante sin variedad, se completa en vez de
+            # crear otra fila igual en el inventario.
+            variante = next(
+                (v for v in candidatas if not clave_nombre(v.type_variety)),
+                None,
+            )
+            if variante:
+                variante.type_variety = tipo_variedad
+    else:
+        # Sin variedad indicada: se reutiliza la que ya existe para no
+        # duplicar el producto.
+        variante = candidatas[0] if candidatas else None
 
     if not variante:
-        sku = generar_sku(producto, marca, tipo_variedad, contenido_valor, contenido_unidad)
+        sku = generar_sku(
+            producto, marca, tipo_variedad, contenido_valor, contenido_unidad
+        )
         variante = ProductVariant(
             product_id=producto.id,
             brand_id=marca.id,
@@ -122,7 +200,9 @@ def obtener_o_crear_variante(producto, marca, tipo_variedad, contenido_valor, co
         db.session.add(variante)
         db.session.commit()
     else:
-        variante.sku_code = generar_sku(producto, marca, tipo_variedad, contenido_valor, contenido_unidad)
+        variante.sku_code = generar_sku(
+            producto, marca, variante.type_variety, contenido_valor, contenido_unidad
+        )
         db.session.commit()
 
     return variante
@@ -256,7 +336,10 @@ def ejecutar_accion(contrato):
         db.session.add(lote)
         db.session.commit()
 
-        return f"Producto agregado correctamente. SKU: {variante.sku_code}"
+        return (
+            f"Producto agregado correctamente. Lote #{lote.id}. "
+            f"SKU: {variante.sku_code}"
+        )
 
 
     if action == "query":
@@ -304,7 +387,13 @@ def ejecutar_accion(contrato):
         if error:
             return error
 
-        lotes = InventoryBatch.query.filter_by(variant_id=variante.id).order_by(InventoryBatch.arrival_date.asc()).all()
+        lotes = (
+            InventoryBatch.query
+            .filter_by(variant_id=variante.id)
+            # Mismo orden que el inventario: por número de lote.
+            .order_by(InventoryBatch.id.asc())
+            .all()
+        )
         total = sum(l.quantity for l in lotes)
 
         texto_lotes = ""

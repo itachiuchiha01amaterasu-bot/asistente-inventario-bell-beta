@@ -28,6 +28,12 @@ type Creado = {
     sku_code: string | null;
     total_quantity: number;
   };
+  lote?: {
+    id: number;
+    quantity: number;
+    arrival_date: string;
+    expiration_date: string | null;
+  };
 };
 
 const UNIDADES = ["Unidad", "L", "kg", "g", "ml"];
@@ -214,6 +220,7 @@ export default function AgregarProductoPage() {
                 {creado.variante.total_quantity} unidad(es)
               </p>
               <p className="mt-1 break-all text-xs text-green-200/70">
+                {creado.lote ? `Lote #${creado.lote.id} · ` : ""}
                 SKU: {creado.variante.sku_code || "sin SKU"}
               </p>
 

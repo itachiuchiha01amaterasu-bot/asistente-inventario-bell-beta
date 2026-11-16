@@ -127,10 +127,9 @@ def inventario():
                 lotes = (
                     InventoryBatch.query
                     .filter_by(variant_id=v.id)
-                    .order_by(
-                        InventoryBatch.arrival_date.asc(),
-                        InventoryBatch.id.asc(),
-                    )
+                    # Orden de creación: el número de lote no cambia al
+                    # editar fechas o cantidades.
+                    .order_by(InventoryBatch.id.asc())
                     .all()
                 )
                 total = sum(l.quantity for l in lotes)
@@ -341,22 +340,16 @@ def editar_variante(variant_id):
             regenerar_sku = True
 
         if "category" in data:
-            category_name = data["category"].strip()
-            category = Category.query.filter_by(name=category_name).first()
-            if not category:
-                category = Category(name=category_name)
-                db.session.add(category)
-            producto.category = category
-            regenerar_sku = True
+            category_name = (data["category"] or "").strip()
+            if category_name:
+                producto.category = obtener_o_crear_categoria(category_name)
+                regenerar_sku = True
 
         if "brand" in data:
-            brand_name = data["brand"].strip()
-            brand = Brand.query.filter_by(name=brand_name).first()
-            if not brand:
-                brand = Brand(name=brand_name)
-                db.session.add(brand)
-            variante.brand = brand
-            regenerar_sku = True
+            brand_name = (data["brand"] or "").strip()
+            if brand_name:
+                variante.brand = obtener_o_crear_marca(brand_name)
+                regenerar_sku = True
 
         if "type_variety" in data:
             variante.type_variety = data["type_variety"]

@@ -90,6 +90,10 @@ const loteDelVencimiento = (v: Variante) => {
   return v.batches.find((b) => b.expiration_date === fecha) ?? null;
 };
 
+// Los lotes se muestran siempre por número, el que se asignó al crearlos.
+const lotesOrdenados = (v: Variante) =>
+  [...v.batches].sort((a, b) => a.id - b.id);
+
 export default function Inventario() {
   const [productos, setProductos] = useState<Producto[]>([]);
   const [busqueda, setBusqueda] = useState("");
@@ -374,7 +378,7 @@ export default function Inventario() {
                           >
                             {v.batches.length > 1
                               ? `Lotes: ${v.batches.length}`
-                              : `Lote: #${loteVencimiento?.id}`}
+                              : `Lote #${loteVencimiento?.id}`}
                           </span>
                         )}
 
@@ -398,7 +402,7 @@ export default function Inventario() {
                     </td>
 
                     <td
-                      title={v.batches
+                      title={lotesOrdenados(v)
                         .map(
                           (b) =>
                             `Lote #${b.id}: ${
@@ -410,7 +414,17 @@ export default function Inventario() {
                         .join("\n")}
                       className={`whitespace-nowrap p-3 font-semibold ${estadoCaducidad(vencimiento)}`}
                     >
-                      {formatearFecha(vencimiento)}
+                      <div>{formatearFecha(vencimiento)}</div>
+
+                      {v.batches.length > 0 && (
+                        <div className="mt-0.5 text-[11px] font-normal text-gray-500">
+                          {v.batches.length === 1
+                            ? `Lote #${lotesOrdenados(v)[0].id}`
+                            : `Lotes: ${lotesOrdenados(v)
+                                .map((b) => `#${b.id}`)
+                                .join(" · ")}`}
+                        </div>
+                      )}
                     </td>
 
                     <td className="whitespace-nowrap p-3">
