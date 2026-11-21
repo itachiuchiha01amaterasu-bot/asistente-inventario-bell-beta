@@ -5,6 +5,20 @@ import EditarVariante from "../../components/EditarInv";
 import { PencilSquareIcon, TrashIcon } from "@heroicons/react/24/solid";
 import { useAuth } from "@/context/AuthContext";
 import { API_URL } from "@/lib/api";
+import {
+  badgeEstadoVencimiento,
+  claseEstadoVencimiento,
+  estadoVencimiento,
+  fechaIngreso,
+  fechaVencimiento,
+  filtrarPorVencimiento,
+  formatearFecha,
+  loteDelVencimiento,
+  lotesOrdenados,
+  resumirVencimientos,
+  textoEstadoVencimiento,
+  type FiltroVencimiento,
+} from "@/lib/vencimientos";
 
 type Lote = {
   id: number;
@@ -33,70 +47,11 @@ type Producto = {
   variants: Omit<Variante, "product_name" | "category">[];
 };
 
-const formatearFecha = (fecha: string | null) => {
-  if (!fecha) return "Por definir";
-
-  if (/^\d{4}-\d{2}-\d{2}$/.test(fecha)) {
-    const [y, m, d] = fecha.split("-");
-    return `${d}/${m}/${y}`;
-  }
-
-  return "Por definir";
-};
-
-const estadoCaducidad = (fecha: string | null) => {
-  if (!fecha) return "text-gray-300";
-
-  const hoy = new Date();
-  const cad = new Date(fecha);
-
-  if (isNaN(cad.getTime())) return "text-gray-300";
-
-  const diff = cad.getTime() - hoy.getTime();
-  const dias = Math.ceil(diff / (1000 * 60 * 60 * 24));
-
-  if (dias < 0) return "text-red-400";
-  if (dias <= 30) return "text-yellow-400";
-  return "text-green-400";
-};
-
-// El inventario puede tener varios lotes por variante. Para la columna
-// "Vencimiento" se muestra la fecha más próxima (la que primero caduca),
-// no la del primer lote. Así, al agregar stock con fecha a un producto
-// que ya existía, la fecha nueva sí se ve.
-const fechaVencimiento = (batches: Lote[]) => {
-  const fechas = batches
-    .map((b) => b.expiration_date)
-    .filter((f): f is string => Boolean(f))
-    .sort();
-
-  return fechas[0] ?? null;
-};
-
-// Ingreso más reciente (el último lote que entró).
-const fechaIngreso = (batches: Lote[]) => {
-  const fechas = batches
-    .map((b) => b.arrival_date)
-    .filter(Boolean)
-    .sort();
-
-  return fechas[fechas.length - 1] ?? null;
-};
-
-// Lote que explica la fecha de vencimiento mostrada.
-const loteDelVencimiento = (v: Variante) => {
-  const fecha = fechaVencimiento(v.batches);
-  if (!fecha) return v.batches[0] ?? null;
-  return v.batches.find((b) => b.expiration_date === fecha) ?? null;
-};
-
-// Los lotes se muestran siempre por número, el que se asignó al crearlos.
-const lotesOrdenados = (v: Variante) =>
-  [...v.batches].sort((a, b) => a.id - b.id);
-
 export default function Inventario() {
   const [productos, setProductos] = useState<Producto[]>([]);
   const [busqueda, setBusqueda] = useState("");
+  const [filtroVencimiento, setFiltroVencimiento] =
+    useState<FiltroVencimiento>("todos");
   const [orden, setOrden] = useState<string | null>(null);
   const [direccion, setDireccion] = useState<"asc" | "desc">("asc");
   const [loading, setLoading] = useState(true);
@@ -133,6 +88,23 @@ export default function Inventario() {
     recargarInventario().finally(() => setLoading(false));
   }, [recargarInventario]);
 
+  // Si se llega desde el panel con ?alerta=..., se aplica ese filtro al
+  // abrir el inventario (alertas, vencidos, por_vencer o sin_fecha).
+  useEffect(() => {
+    const alerta = new URLSearchParams(window.location.search).get("alerta");
+    if (
+      alerta === "alertas" ||
+      alerta === "vencidos" ||
+      alerta === "por_vencer" ||
+      alerta === "sin_fecha"
+    ) {
+      // El filtro inicial viene de la URL: es una sincronización con un
+      // sistema externo, no un estado derivado de otro estado.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setFiltroVencimiento(alerta);
+    }
+  }, []);
+
   // Cerrar el diálogo de eliminar con Escape.
   useEffect(() => {
     if (!porEliminar) return;
@@ -158,6 +130,32 @@ export default function Inventario() {
     );
   }, [productos]);
 
+  const resumen = useMemo(() => resumirVencimientos(variantes), [variantes]);
+
+  const filtrosVencimiento: {
+    id: FiltroVencimiento;
+    texto: string;
+    cantidad: number;
+  }[] = [
+    { id: "todos", texto: "Todos", cantidad: resumen.totalVariantes },
+    {
+      id: "alertas",
+      texto: "Con alertas",
+      cantidad: resumen.variantesConAlerta,
+    },
+    { id: "vencidos", texto: "Vencidos", cantidad: resumen.variantesVencidas },
+    {
+      id: "por_vencer",
+      texto: "Por vencer (30 días)",
+      cantidad: resumen.variantesPorVencer,
+    },
+    {
+      id: "sin_fecha",
+      texto: "Sin fecha",
+      cantidad: resumen.variantesSinFecha,
+    },
+  ];
+
   const variantesConTotales = variantes.map((v) => ({
     ...v,
     total: v.total_quantity,
@@ -174,7 +172,7 @@ export default function Inventario() {
       : null;
 
   const variantesFiltradas = useMemo(() => {
-    return variantes.filter((v) => {
+    const porTexto = variantes.filter((v) => {
       const fechas = v.batches
         .map((b) => `${b.arrival_date} ${b.expiration_date ?? ""}`)
         .join(" ");
@@ -190,7 +188,9 @@ export default function Inventario() {
 
       return texto.includes(busqueda.toLowerCase());
     });
-  }, [variantes, busqueda]);
+
+    return filtrarPorVencimiento(porTexto, filtroVencimiento);
+  }, [variantes, busqueda, filtroVencimiento]);
 
   const ordenarPor = (columna: string) => {
     if (orden === columna) {
@@ -389,14 +389,78 @@ export default function Inventario() {
 
       </div>
 
+      {(resumen.lotesVencidos > 0 || resumen.lotesPorVencer > 0) && (
+        <div
+          role="status"
+          className="flex flex-col gap-3 rounded-xl border border-orange-500/40 bg-orange-500/10 p-4 sm:flex-row sm:items-center sm:justify-between"
+        >
+          <div className="min-w-0">
+            <p className="font-semibold text-orange-200">
+              ⚠️ Revisa los vencimientos
+            </p>
+            <p className="mt-1 text-sm text-orange-100/80">
+              {resumen.lotesVencidos} lote(s) vencido(s) y{" "}
+              {resumen.lotesPorVencer} por vencer en los próximos 30 días.
+            </p>
+          </div>
+
+          <div className="flex flex-wrap gap-2">
+            {resumen.lotesVencidos > 0 && (
+              <button
+                type="button"
+                onClick={() => setFiltroVencimiento("vencidos")}
+                className="rounded-lg border border-red-500/50 bg-red-500/15 px-3 py-1.5 text-xs font-semibold text-red-200 transition hover:bg-red-500/25 sm:text-sm"
+              >
+                Ver vencidos
+              </button>
+            )}
+            {resumen.lotesPorVencer > 0 && (
+              <button
+                type="button"
+                onClick={() => setFiltroVencimiento("por_vencer")}
+                className="rounded-lg border border-yellow-500/50 bg-yellow-500/15 px-3 py-1.5 text-xs font-semibold text-yellow-200 transition hover:bg-yellow-500/25 sm:text-sm"
+              >
+                Ver por vencer
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* TABLA */}
       <div className="rounded-xl border border-[#2a2a2a] bg-[#1b1b1b] p-4 shadow-lg sm:p-6">
-        <h2 className="mb-1 text-xl font-semibold text-gray-200 sm:mb-6 sm:text-2xl">
+        <h2 className="mb-3 text-xl font-semibold text-gray-200 sm:text-2xl">
           Lista de Productos
         </h2>
         <p className="mb-3 text-xs text-gray-500 sm:hidden">
           Desliza la tabla hacia los lados para ver todas las columnas.
         </p>
+
+        <div
+          className="mb-4 flex flex-wrap gap-2"
+          role="group"
+          aria-label="Filtrar por vencimiento"
+        >
+          {filtrosVencimiento.map((filtro) => {
+            const activo = filtroVencimiento === filtro.id;
+
+            return (
+              <button
+                key={filtro.id}
+                type="button"
+                aria-pressed={activo}
+                onClick={() => setFiltroVencimiento(filtro.id)}
+                className={`rounded-full border px-3 py-1.5 text-xs font-semibold transition sm:text-sm ${
+                  activo
+                    ? "border-orange-500 bg-orange-500 text-black"
+                    : "border-[#3a3a3a] bg-[#111] text-gray-300 hover:border-orange-500/60 hover:text-orange-300"
+                }`}
+              >
+                {filtro.texto} ({filtro.cantidad})
+              </button>
+            );
+          })}
+        </div>
 
         <div className="overflow-x-auto">
           <table className="w-full min-w-[900px] border-collapse text-sm sm:text-base">
@@ -438,10 +502,22 @@ export default function Inventario() {
             </thead>
 
             <tbody>
+              {variantesOrdenadas.length === 0 && (
+                <tr>
+                  <td
+                    colSpan={puedeGestionar ? 9 : 8}
+                    className="p-6 text-center text-gray-500"
+                  >
+                    No hay productos que coincidan con la búsqueda o el filtro.
+                  </td>
+                </tr>
+              )}
+
               {variantesOrdenadas.map((v) => {
                 const ingreso = fechaIngreso(v.batches);
                 const vencimiento = fechaVencimiento(v.batches);
                 const loteVencimiento = loteDelVencimiento(v);
+                const estado = estadoVencimiento(vencimiento);
 
                 return (
                   <tr
@@ -505,17 +581,28 @@ export default function Inventario() {
                             }`
                         )
                         .join("\n")}
-                      className={`whitespace-nowrap p-3 font-semibold ${estadoCaducidad(vencimiento)}`}
+                      className={`whitespace-nowrap p-3 font-semibold ${claseEstadoVencimiento(estado)}`}
                     >
                       <div>{formatearFecha(vencimiento)}</div>
 
                       {v.batches.length > 0 && (
-                        <div className="mt-0.5 text-[11px] font-normal text-gray-500">
-                          {v.batches.length === 1
-                            ? `Lote #${lotesOrdenados(v)[0].id}`
-                            : `Lotes: ${lotesOrdenados(v)
-                                .map((b) => `#${b.id}`)
-                                .join(" · ")}`}
+                        <div className="mt-0.5 flex flex-wrap items-center gap-1.5 text-[11px] font-normal">
+                          <span className="text-gray-500">
+                            {v.batches.length === 1
+                              ? `Lote #${lotesOrdenados(v)[0].id}`
+                              : `Lotes: ${lotesOrdenados(v)
+                                  .map((b) => `#${b.id}`)
+                                  .join(" · ")}`}
+                          </span>
+
+                          {(estado === "vencido" ||
+                            estado === "por_vencer") && (
+                            <span
+                              className={`rounded-full border px-2 py-0.5 font-semibold ${badgeEstadoVencimiento(estado)}`}
+                            >
+                              {textoEstadoVencimiento(estado)}
+                            </span>
+                          )}
                         </div>
                       )}
                     </td>

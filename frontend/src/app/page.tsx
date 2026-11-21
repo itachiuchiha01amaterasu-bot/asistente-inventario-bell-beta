@@ -1,10 +1,18 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 import { useIsClient } from "@/hooks/useIsClient";
 import { API_URL } from "@/lib/api";
+import {
+  badgeEstadoVencimiento,
+  formatearFecha,
+  obtenerAlertas,
+  resumirVencimientos,
+  textoDiasParaVencer,
+} from "@/lib/vencimientos";
 import {
   PieChart,
   Pie,
@@ -99,8 +107,6 @@ export default function Home() {
 
   const variantesRegistradas = variantes.length;
 
-  const consultasIA = 0;
-
   const categoriasMap: Record<string, number> = {};
   variantes.forEach((v) => {
     const cat = v.category || "Sin categoría";
@@ -127,6 +133,10 @@ export default function Home() {
     { nivel: "Medio", cantidad: stockLevels.medio },
     { nivel: "Bajo", cantidad: stockLevels.bajo },
   ];
+
+  const alertas = useMemo(() => obtenerAlertas(variantes), [variantes]);
+  const resumen = useMemo(() => resumirVencimientos(variantes), [variantes]);
+  const alertasVisibles = alertas.slice(0, 6);
 
   if (!isAuthenticated) return null;
 
@@ -184,14 +194,150 @@ export default function Home() {
         {/* Tarjeta 3 */}
         <div className="bg-gradient-to-br from-[#1b1b1b] to-[#141414] p-4 sm:p-6 rounded-xl shadow-lg border border-[#2a2a2a] sm:hover:scale-[1.03] transition-all animate-[fadeIn_.6s_ease-out]">
           <div className="flex items-center justify-between">
-            <h3 className="text-sm text-gray-400 sm:text-base lg:text-lg">Consultas IA Hoy</h3>
-            <span className="text-orange-500 text-2xl sm:text-3xl lg:text-4xl drop-shadow-[0_0_10px_rgba(249,115,22,0.4)]">🤖</span>
+            <h3 className="text-sm text-gray-400 sm:text-base lg:text-lg">Alertas de vencimiento</h3>
+            <span className="text-orange-500 text-2xl sm:text-3xl lg:text-4xl drop-shadow-[0_0_10px_rgba(249,115,22,0.4)]">⚠️</span>
           </div>
-          <p className="mt-2 text-3xl font-bold text-orange-500 sm:text-4xl lg:text-5xl">{consultasIA}</p>
+          <p
+            className={`mt-2 text-3xl font-bold sm:text-4xl lg:text-5xl ${
+              resumen.lotesVencidos > 0
+                ? "text-red-400"
+                : resumen.lotesPorVencer > 0
+                  ? "text-yellow-400"
+                  : "text-green-400"
+            }`}
+          >
+            {resumen.lotesVencidos + resumen.lotesPorVencer}
+          </p>
+          <p className="mt-1 text-xs text-gray-500 sm:text-sm">
+            {resumen.lotesVencidos} vencido(s) · {resumen.lotesPorVencer} por vencer
+          </p>
           <div className="h-[3px] w-full bg-orange-500/20 mt-4 rounded-full"></div>
         </div>
 
       </div>
+
+      {/* ALERTAS DE VENCIMIENTO */}
+      <section className="rounded-xl border border-[#2a2a2a] bg-[#1b1b1b] p-4 shadow-lg sm:p-6">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+          <div>
+            <h2 className="text-xl font-semibold text-orange-300 sm:text-2xl">
+              Alertas de vencimiento
+            </h2>
+            <p className="mt-1 text-sm text-gray-400">
+              Lotes vencidos o que vencen en los próximos 30 días.
+            </p>
+          </div>
+          <Link
+            href="/inventario"
+            className="shrink-0 text-sm font-semibold text-orange-400 hover:underline"
+          >
+            Ir al inventario →
+          </Link>
+        </div>
+
+        <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <div
+            className={`rounded-lg border p-4 ${
+              resumen.lotesVencidos > 0
+                ? "border-red-500/40 bg-red-500/10"
+                : "border-[#2a2a2a] bg-[#111]"
+            }`}
+          >
+            <div className="flex items-center justify-between gap-2">
+              <p className="text-sm text-gray-400">Lotes vencidos</p>
+              {resumen.lotesVencidos > 0 && (
+                <Link
+                  href="/inventario?alerta=vencidos"
+                  className="text-xs font-semibold text-red-300 hover:underline"
+                >
+                  Ver vencidos →
+                </Link>
+              )}
+            </div>
+            <p
+              className={`mt-1 text-3xl font-bold ${
+                resumen.lotesVencidos > 0 ? "text-red-400" : "text-gray-300"
+              }`}
+            >
+              {resumen.lotesVencidos}
+            </p>
+            <p className="mt-1 text-xs text-gray-500">
+              {resumen.unidadesVencidas} unidad(es)
+            </p>
+          </div>
+
+          <div
+            className={`rounded-lg border p-4 ${
+              resumen.lotesPorVencer > 0
+                ? "border-yellow-500/40 bg-yellow-500/10"
+                : "border-[#2a2a2a] bg-[#111]"
+            }`}
+          >
+            <div className="flex items-center justify-between gap-2">
+              <p className="text-sm text-gray-400">Por vencer (30 días)</p>
+              {resumen.lotesPorVencer > 0 && (
+                <Link
+                  href="/inventario?alerta=por_vencer"
+                  className="text-xs font-semibold text-yellow-300 hover:underline"
+                >
+                  Ver por vencer →
+                </Link>
+              )}
+            </div>
+            <p
+              className={`mt-1 text-3xl font-bold ${
+                resumen.lotesPorVencer > 0 ? "text-yellow-400" : "text-gray-300"
+              }`}
+            >
+              {resumen.lotesPorVencer}
+            </p>
+            <p className="mt-1 text-xs text-gray-500">
+              {resumen.unidadesPorVencer} unidad(es)
+            </p>
+          </div>
+        </div>
+
+        {alertasVisibles.length === 0 ? (
+          <p className="mt-4 rounded-lg border border-green-500/30 bg-green-500/10 p-4 text-sm text-green-200">
+            🎉 No hay lotes vencidos ni por vencer en los próximos 30 días.
+          </p>
+        ) : (
+          <ul className="mt-4 divide-y divide-[#2a2a2a] overflow-hidden rounded-lg border border-[#2a2a2a] bg-[#111]">
+            {alertasVisibles.map((alerta) => (
+              <li
+                key={`${alerta.variant_id}-${alerta.lote_id}`}
+                className="flex flex-col gap-2 p-3 sm:flex-row sm:items-center sm:justify-between"
+              >
+                <div className="min-w-0">
+                  <p className="truncate font-semibold text-gray-100">
+                    {alerta.product_name} · {alerta.brand}
+                  </p>
+                  <p className="mt-0.5 text-sm text-gray-400">
+                    Lote #{alerta.lote_id} · {alerta.quantity} unidad(es) ·
+                    vence {formatearFecha(alerta.expiration_date)}
+                  </p>
+                </div>
+                <span
+                  className={`shrink-0 self-start rounded-full border px-3 py-1 text-xs font-semibold sm:self-auto ${badgeEstadoVencimiento(alerta.estado)}`}
+                >
+                  {textoDiasParaVencer(alerta.expiration_date)}
+                </span>
+              </li>
+            ))}
+          </ul>
+        )}
+
+        {alertas.length > alertasVisibles.length && (
+          <div className="mt-3 text-right">
+            <Link
+              href="/inventario?alerta=alertas"
+              className="text-sm font-semibold text-orange-400 hover:underline"
+            >
+              Ver las {alertas.length} alertas →
+            </Link>
+          </div>
+        )}
+      </section>
 
       {/* GRÁFICOS */}
       <h2 className="text-xl font-semibold text-orange-300 drop-shadow-[0_0_8px_rgba(249,115,22,0.3)] sm:text-2xl lg:text-3xl">
