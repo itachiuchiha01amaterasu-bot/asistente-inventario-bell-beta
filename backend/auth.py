@@ -147,25 +147,72 @@ def me():
 
 
 # -----------------------------
-# CREAR USUARIOS (solo super_admin)
+# GESTIÓN DE USUARIOS (solo super_admin)
 # -----------------------------
+ROLES_VALIDOS = ("user", "admin", "super_admin")
+
+
+def _usuario_actual():
+    """Devuelve el usuario del token o None si ya no existe."""
+    return User.query.get(get_jwt_identity())
+
+
+def _solo_super_admin():
+    """Valida el rol; devuelve (usuario, respuesta de error o None)."""
+    actual = _usuario_actual()
+
+    if not actual:
+        return None, (jsonify({"error": "Usuario no encontrado"}), 404)
+
+    if actual.role != "super_admin":
+        return None, (
+            jsonify({"error": "Solo super_admin puede gestionar usuarios"}),
+            403,
+        )
+
+    return actual, None
+
+
+def _cantidad_super_admin():
+    return User.query.filter_by(role="super_admin").count()
+
+
+@auth_bp.route("/api/auth/users", methods=["GET"])
+@jwt_required()
+def listar_usuarios():
+    _, error = _solo_super_admin()
+    if error:
+        return error
+
+    usuarios = User.query.order_by(User.username.asc()).all()
+
+    return jsonify({"usuarios": [u.to_dict() for u in usuarios]}), 200
+
+
 @auth_bp.route("/api/auth/users", methods=["POST"])
 @jwt_required()
 def crear_usuario():
-    current_user_id = get_jwt_identity()
-    current_user = User.query.get(current_user_id)
+    _, error = _solo_super_admin()
+    if error:
+        return error
 
-    if current_user.role != "super_admin":
-        return jsonify({"error": "Solo super_admin puede crear usuarios"}), 403
-
-    data = request.get_json()
-    username = data.get("username")
-    email = data.get("email")
-    password = data.get("password")
+    data = request.get_json(silent=True) or {}
+    username = (data.get("username") or "").strip()
+    email = (data.get("email") or "").strip().lower()
+    password = data.get("password") or ""
     role = data.get("role", "user")
 
     if not username or not email or not password:
         return jsonify({"error": "Faltan campos requeridos"}), 400
+
+    # La longitud y el rol también se validan en el servidor.
+    if len(password) < 8 or not password.strip():
+        return jsonify({
+            "error": "La contraseña debe tener al menos 8 caracteres"
+        }), 400
+
+    if role not in ROLES_VALIDOS:
+        return jsonify({"error": "El rol indicado no es válido"}), 400
 
     if User.query.filter_by(username=username).first():
         return jsonify({"error": "El usuario ya existe"}), 400
@@ -182,6 +229,100 @@ def crear_usuario():
         "mensaje": "Usuario creado correctamente",
         "usuario": new_user.to_dict()
     }), 201
+
+
+@auth_bp.route("/api/auth/users/<int:user_id>", methods=["PUT"])
+@jwt_required()
+def editar_usuario(user_id):
+    actual, error = _solo_super_admin()
+    if error:
+        return error
+
+    user = User.query.get(user_id)
+    if not user:
+        return jsonify({"error": "Usuario no encontrado"}), 404
+
+    data = request.get_json(silent=True) or {}
+
+    username = (data.get("username") or "").strip()
+    email = (data.get("email") or "").strip().lower()
+    role = data.get("role", user.role)
+    password = data.get("password") or ""
+
+    if not username or not email:
+        return jsonify({"error": "Usuario y correo son obligatorios"}), 400
+
+    if role not in ROLES_VALIDOS:
+        return jsonify({"error": "El rol indicado no es válido"}), 400
+
+    # No permitir que un super_admin se quite a sí mismo el rol: así nunca
+    # puede dejar la sesión sin permisos por error.
+    if user.id == actual.id and role != user.role:
+        return jsonify({
+            "error": "No puedes cambiar tu propio rol"
+        }), 400
+
+    # Tampoco se puede degradar al último super_admin que queda.
+    if (
+        user.role == "super_admin"
+        and role != "super_admin"
+        and _cantidad_super_admin() <= 1
+    ):
+        return jsonify({
+            "error": "Debe existir al menos un super_admin"
+        }), 400
+
+    repetido = User.query.filter(
+        User.username == username, User.id != user.id
+    ).first()
+    if repetido:
+        return jsonify({"error": "El usuario ya existe"}), 400
+
+    repetido_email = User.query.filter(
+        User.email == email, User.id != user.id
+    ).first()
+    if repetido_email:
+        return jsonify({"error": "El correo ya está registrado"}), 400
+
+    if password:
+        if len(password) < 8 or not password.strip():
+            return jsonify({
+                "error": "La contraseña debe tener al menos 8 caracteres"
+            }), 400
+        user.set_password(password)
+
+    user.username = username
+    user.email = email
+    user.role = role
+    db.session.commit()
+
+    return jsonify({
+        "mensaje": "Usuario actualizado correctamente",
+        "usuario": user.to_dict()
+    }), 200
+
+
+@auth_bp.route("/api/auth/users/<int:user_id>", methods=["DELETE"])
+@jwt_required()
+def eliminar_usuario(user_id):
+    actual, error = _solo_super_admin()
+    if error:
+        return error
+
+    user = User.query.get(user_id)
+    if not user:
+        return jsonify({"error": "Usuario no encontrado"}), 404
+
+    if user.id == actual.id:
+        return jsonify({"error": "No puedes eliminar tu propia cuenta"}), 400
+
+    if user.role == "super_admin" and _cantidad_super_admin() <= 1:
+        return jsonify({"error": "Debe existir al menos un super_admin"}), 400
+
+    db.session.delete(user)
+    db.session.commit()
+
+    return jsonify({"mensaje": "Usuario eliminado correctamente"}), 200
 
 
 # -----------------------------

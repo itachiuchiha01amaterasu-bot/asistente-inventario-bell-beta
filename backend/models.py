@@ -113,5 +113,6 @@ class User(db.Model):
             "id": self.id,
             "username": self.username,
             "email": self.email,
-            "role": self.role
+            "role": self.role,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
         }

@@ -10,6 +10,7 @@ import {
   ChatBubbleLeftRightIcon,
   DocumentChartBarIcon,
   PlusCircleIcon,
+  UsersIcon,
   XMarkIcon,
 } from "@heroicons/react/24/outline";
 
@@ -95,6 +96,17 @@ export default function Sidebar({ onNavigate, onClose }: Props) {
           <DocumentChartBarIcon className={iconClass("/reportes")} />
           Reportes
         </Link>
+
+        {isReady && user?.role === "super_admin" && (
+          <Link
+            href="/usuarios"
+            onClick={onNavigate}
+            className={linkClass("/usuarios")}
+          >
+            <UsersIcon className={iconClass("/usuarios")} />
+            Usuarios
+          </Link>
+        )}
 
         {isReady && esAdmin && (
           <Link
