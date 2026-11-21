@@ -8,6 +8,7 @@ import {
   ChartBarIcon,
   CubeIcon,
   ChatBubbleLeftRightIcon,
+  DocumentChartBarIcon,
   PlusCircleIcon,
   XMarkIcon,
 } from "@heroicons/react/24/outline";
@@ -84,6 +85,15 @@ export default function Sidebar({ onNavigate, onClose }: Props) {
         <Link href="/chat" onClick={onNavigate} className={linkClass("/chat")}>
           <ChatBubbleLeftRightIcon className={iconClass("/chat")} />
           Chat IA
+        </Link>
+
+        <Link
+          href="/reportes"
+          onClick={onNavigate}
+          className={linkClass("/reportes")}
+        >
+          <DocumentChartBarIcon className={iconClass("/reportes")} />
+          Reportes
         </Link>
 
         {isReady && esAdmin && (
