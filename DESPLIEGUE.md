@@ -11,6 +11,9 @@ Arquitectura:
 
 Repositorio: <https://github.com/itachiuchiha01amaterasu-bot/asistente-inventario-bell-beta>
 
+> 💡 ¿Quieres ejecutar la aplicación en Windows o Linux sin instalar Python ni
+> Node? Usa Docker: consulta **[DOCKER.md](DOCKER.md)**.
+
 ---
 
 ## 🔐 Variables de entorno

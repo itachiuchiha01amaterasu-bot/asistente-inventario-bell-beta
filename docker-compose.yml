@@ -1,0 +1,88 @@
+# Aplicación completa (PostgreSQL + Flask + Next.js) para Windows y Linux.
+#
+#   docker compose up -d --build
+#   Abrir http://localhost:3000
+#
+# El puerto y las credenciales se pueden cambiar con variables de entorno
+# o con un archivo .env en la raíz del repositorio (nunca se sube a Git).
+
+name: inventario-bell
+
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-bell}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-bell_local_password}
+      POSTGRES_DB: ${POSTGRES_DB:-bell}
+    volumes:
+      - db_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 5s
+    restart: unless-stopped
+
+  backend:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    image: inventario-bell-backend
+    environment:
+      # La base vive en el servicio "db" de esta misma red de Docker.
+      DATABASE_URL: postgresql+pg8000://${POSTGRES_USER:-bell}:${POSTGRES_PASSWORD:-bell_local_password}@db:5432/${POSTGRES_DB:-bell}
+      # PostgreSQL local no usa SSL; Supabase/Render sí (valor por defecto).
+      DB_SSL: "false"
+      PORT: "8000"
+      JWT_SECRET_KEY: ${JWT_SECRET_KEY:-clave-local-de-desarrollo-cambiar-en-produccion}
+      IA_BASE_URL: ${IA_BASE_URL:-https://openrouter.ai/api/v1}
+      IA_API_KEY: ${IA_API_KEY:-}
+      IA_MODEL: ${IA_MODEL:-openrouter/free}
+      IA_FALLBACK_MODELS: ${IA_FALLBACK_MODELS:-liquid/lfm-2.5-2.6b:free,nvidia/nemotron-3.5-lightning:free}
+      IA_TIMEOUT: ${IA_TIMEOUT:-20}
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - "${BACKEND_PORT:-8000}:8000"
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        # URL que usa el NAVEGADOR para llamar al backend. Si abres la app
+        # desde otro equipo de la red, cámbiala por http://IP-DEL-EQUIPO:8000.
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:8000}
+    image: inventario-bell-frontend
+    depends_on:
+      backend:
+        condition: service_healthy
+    ports:
+      - "${FRONTEND_PORT:-3000}:3000"
+    restart: unless-stopped
+
+  # Servicio de un solo uso para crear el primer super_admin.
+  #   ADMIN_PASSWORD='TuClaveSegura123' docker compose --profile init run --rm admin
+  admin:
+    profiles: ["init"]
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    image: inventario-bell-backend
+    environment:
+      DATABASE_URL: postgresql+pg8000://${POSTGRES_USER:-bell}:${POSTGRES_PASSWORD:-bell_local_password}@db:5432/${POSTGRES_DB:-bell}
+      DB_SSL: "false"
+      ADMIN_USERNAME: ${ADMIN_USERNAME:-admin}
+      ADMIN_EMAIL: ${ADMIN_EMAIL:-admin@inventario.local}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-}
+    depends_on:
+      db:
+        condition: service_healthy
+    command: ["python", "-m", "backend.inicializar_bd"]
+
+volumes:
+  db_data:

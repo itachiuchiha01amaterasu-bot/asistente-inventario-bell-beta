@@ -25,6 +25,7 @@ out/
 # Environment files (no subir secretos)
 .env
 .env.production
+.env.docker
 
 # OS
 .DS_Store

@@ -1,0 +1,32 @@
+# Archivos que no deben entrar a la imagen del backend.
+.git
+.gitignore
+.vscode
+.env
+.env.*
+**/.env
+**/.env.*
+
+# Entornos virtuales y caché de Python
+backend/venv
+backend/.venv
+**/__pycache__
+**/*.py[cod]
+
+# Base de datos local
+*.db
+*.sqlite3
+*.sqlite3-journal
+instance
+backend/instance
+
+# Frontend: no forma parte de la imagen del backend
+frontend
+
+# Documentación y configuración de otras plataformas
+DESPLIEGUE.md
+GUIA_CHAT.md
+DOCKER.md
+render.yaml
+Procfile
+docker-compose.yml

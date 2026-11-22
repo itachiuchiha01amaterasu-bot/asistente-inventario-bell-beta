@@ -52,7 +52,14 @@ engine_options = {
 }
 
 # pg8000 necesita un contexto SSL explícito para PostgreSQL/Supabase.
-if (os.environ.get("DATABASE_URL") or "").startswith("postgresql+pg8000"):
+# En Docker con PostgreSQL local no hay SSL: se desactiva con DB_SSL=false.
+usa_ssl = os.environ.get("DB_SSL", "true").strip().lower() not in (
+    "0", "false", "no", "off",
+)
+if (
+    (os.environ.get("DATABASE_URL") or "").startswith("postgresql+pg8000")
+    and usa_ssl
+):
     import ssl
 
     # Si defines DB_SSL_CA con la ruta al certificado raíz de tu base de datos
