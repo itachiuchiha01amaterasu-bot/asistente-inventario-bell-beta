@@ -7,6 +7,7 @@ import {
   UMBRAL_POR_VENCER,
   type VarianteVencimiento,
 } from "./vencimientos";
+import { precioCSV } from "./precios";
 
 export type FilaCSV = string[];
 
@@ -34,6 +35,7 @@ export function filasInventario(
       "Marca",
       "Variedad",
       "Contenido",
+      "Precio",
       "SKU",
       "Stock total",
       "Lotes",
@@ -52,6 +54,7 @@ export function filasInventario(
       variante.brand,
       variante.type_variety || "Sin variedad",
       contenido(variante),
+      precioCSV(variante.price),
       variante.sku_code || "",
       String(variante.total_quantity),
       String(variante.batches.length),
@@ -107,6 +110,8 @@ export function filasVencimientos(
       "Contenido",
       "Lote",
       "Cantidad",
+      "Precio unitario",
+      "Valor del lote",
       "Ingreso",
       "Vencimiento",
     ],
@@ -125,6 +130,12 @@ export function filasVencimientos(
       contenido(variante),
       `#${lote.id}`,
       String(lote.quantity),
+      precioCSV(variante.price),
+      precioCSV(
+        variante.price !== null && variante.price !== undefined
+          ? Math.round(variante.price * lote.quantity * 100) / 100
+          : null
+      ),
       formatearFecha(lote.arrival_date),
       formatearFecha(lote.expiration_date),
     ]);
@@ -144,6 +155,7 @@ export function filasStockBajo(
       "Marca",
       "Variedad",
       "Contenido",
+      "Precio",
       "Stock total",
       "Lotes",
       "Vencimiento más próximo",
@@ -169,6 +181,7 @@ export function filasStockBajo(
       variante.brand,
       variante.type_variety || "Sin variedad",
       contenido(variante),
+      precioCSV(variante.price),
       String(variante.total_quantity),
       String(variante.batches.length),
       formatearFecha(vencimiento),
@@ -190,6 +203,7 @@ export function filasResumenRubros(
     lotesVencidos: number;
     lotesPorVencer: number;
     variantesSinFecha: number;
+    valor: number;
   };
 
   const resumen = new Map<string, Resumen>();
@@ -203,11 +217,16 @@ export function filasResumenRubros(
       lotesVencidos: 0,
       lotesPorVencer: 0,
       variantesSinFecha: 0,
+      valor: 0,
     };
 
     actual.variantes += 1;
     actual.unidades += variante.total_quantity;
     actual.lotes += variante.batches.length;
+
+    if (variante.price !== null && variante.price !== undefined) {
+      actual.valor += variante.price * variante.total_quantity;
+    }
 
     if (fechaVencimiento(variante.batches) === null) {
       actual.variantesSinFecha += 1;
@@ -231,6 +250,7 @@ export function filasResumenRubros(
       "Lotes vencidos",
       "Lotes por vencer",
       "Variantes sin fecha",
+      "Valor del stock",
     ],
   ];
 
@@ -245,6 +265,7 @@ export function filasResumenRubros(
       String(datos.lotesVencidos),
       String(datos.lotesPorVencer),
       String(datos.variantesSinFecha),
+      precioCSV(Math.round(datos.valor * 100) / 100),
     ]);
   }
 

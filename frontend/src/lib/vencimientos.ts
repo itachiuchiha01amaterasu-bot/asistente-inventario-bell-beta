@@ -24,6 +24,7 @@ export type VarianteVencimiento = {
   content_value: number | null;
   content_unit: string | null;
   sku_code?: string | null;
+  price?: number | null;
   total_quantity: number;
   batches: LoteVencimiento[];
   product_name: string;

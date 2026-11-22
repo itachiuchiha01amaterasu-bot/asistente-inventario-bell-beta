@@ -10,6 +10,7 @@ from backend.interpretar import interpretar_mensaje, ErrorIA
 from backend.ejecutar import (
     ejecutar_accion,
     normalizar_fecha,
+    parsear_precio,
     obtener_o_crear_categoria,
     obtener_o_crear_marca,
     obtener_o_crear_producto,
@@ -76,6 +77,11 @@ db.init_app(app)
 with app.app_context():
     db.create_all()
 
+    # Agrega columnas nuevas a tablas que ya existían (precio, etc.).
+    from backend.migraciones import asegurar_columnas
+
+    asegurar_columnas()
+
 
 def generar_sku(producto, variante):
     categoria = (producto.category.name if producto.category else "GEN").upper()
@@ -141,6 +147,7 @@ def inventario():
                     "content_value": v.content_value,
                     "content_unit": v.content_unit,
                     "sku_code": v.sku_code,
+                    "price": float(v.price) if v.price is not None else None,
                     "total_quantity": total,
                     "batches": [
                         {
@@ -236,6 +243,15 @@ def comprar():
                 variante.product.name if variante.product else f"Producto #{variant_id}"
             )
 
+            if variante.price is None:
+                db.session.rollback()
+                return jsonify({
+                    "error": (
+                        f"{nombre} no tiene precio. "
+                        "Pídele a un administrador que lo agregue."
+                    )
+                }), 400
+
             if cantidad > disponibles:
                 db.session.rollback()
                 if disponibles <= 0:
@@ -272,6 +288,7 @@ def comprar():
                     content_value=variante.content_value,
                     content_unit=variante.content_unit,
                     quantity=cantidad,
+                    unit_price=variante.price,
                 )
             )
 
@@ -377,6 +394,10 @@ def crear_producto():
             "error": "La caducidad no puede ser anterior a la fecha de ingreso"
         }), 400
 
+    precio, error_precio = parsear_precio(data.get("price"))
+    if error_precio:
+        return jsonify({"error": error_precio}), 400
+
     try:
         categoria_obj = obtener_o_crear_categoria(categoria)
         marca_obj = obtener_o_crear_marca(marca)
@@ -388,6 +409,10 @@ def crear_producto():
             contenido_valor,
             contenido_unidad,
         )
+
+        # Si el producto ya existía, el precio indicado lo actualiza.
+        if precio is not None:
+            variante.price = precio
 
         lote = InventoryBatch(
             variant_id=variante.id,
@@ -422,6 +447,7 @@ def crear_producto():
             "content_value": variante.content_value,
             "content_unit": variante.content_unit,
             "sku_code": variante.sku_code,
+            "price": float(variante.price) if variante.price is not None else None,
             "total_quantity": int(total or 0),
         },
         "lote": {
@@ -496,6 +522,13 @@ def editar_variante(variant_id):
         if "type_variety" in data:
             variante.type_variety = data["type_variety"]
             regenerar_sku = True
+
+        if "price" in data:
+            precio, error_precio = parsear_precio(data.get("price"))
+            if error_precio:
+                return jsonify({"error": error_precio}), 400
+            # Un precio vacío deja el producto "sin precio" (no se vende).
+            variante.price = precio
 
         # Manejo seguro de content_value y content_unit
         if "content_value" in data or "content_unit" in data:

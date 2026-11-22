@@ -13,8 +13,10 @@ import {
   descripcionItem,
   formatearFechaHora,
   stockVendible,
+  totalCompra,
   type Compra,
 } from "@/lib/compras";
+import { formatearPrecio, subtotal } from "@/lib/precios";
 import {
   badgeEstadoVencimiento,
   estadoVencimiento,
@@ -177,6 +179,7 @@ export default function Tienda() {
 
   const abrirCompra = (variante: VarianteTienda) => {
     if (variante.vendible <= 0) return;
+    if (variante.price === null || variante.price === undefined) return;
 
     setPorComprar({ variante, cantidad: cantidadDe(variante) });
     setErrorCompra(null);
@@ -325,6 +328,8 @@ export default function Tienda() {
             const vencimiento = fechaVencimiento(variante.batches);
             const estado = estadoVencimiento(vencimiento);
             const agotado = variante.vendible <= 0;
+            const sinPrecio =
+              variante.price === null || variante.price === undefined;
             const noVendibles =
               variante.total_quantity - variante.vendible;
 
@@ -362,6 +367,18 @@ export default function Tienda() {
                     : "Contenido por definir"}
                 </p>
 
+                <p
+                  className={`mt-1 text-xl font-bold ${
+                    variante.price === null || variante.price === undefined
+                      ? "text-sm font-normal text-yellow-400"
+                      : "text-orange-400"
+                  }`}
+                >
+                  {variante.price === null || variante.price === undefined
+                    ? "Precio por definir"
+                    : formatearPrecio(variante.price)}
+                </p>
+
                 <div className="mt-3 flex flex-wrap items-center gap-2">
                   <span
                     className={`rounded-full border px-3 py-1 text-xs font-semibold ${
@@ -391,6 +408,12 @@ export default function Tienda() {
                   </p>
                 )}
 
+                {sinPrecio && (
+                  <p className="mt-2 text-xs text-yellow-400/80">
+                    Un administrador debe asignarle un precio para venderlo.
+                  </p>
+                )}
+
                 <div className="mt-auto flex items-end gap-2 border-t border-[#2a2a2a] pt-4">
                   <label className="w-24">
                     <span className="mb-1 block text-xs text-gray-500">
@@ -404,7 +427,7 @@ export default function Tienda() {
                       onChange={(e) =>
                         cambiarCantidad(variante, e.target.value)
                       }
-                      disabled={agotado}
+                      disabled={agotado || sinPrecio}
                       className="w-full rounded-lg border border-[#3a3a3a] bg-[#111] px-3 py-2 text-sm text-gray-100 focus:border-orange-500 focus:outline-none disabled:cursor-not-allowed disabled:opacity-50"
                     />
                   </label>
@@ -412,11 +435,15 @@ export default function Tienda() {
                   <button
                     type="button"
                     onClick={() => abrirCompra(variante)}
-                    disabled={agotado}
+                    disabled={agotado || sinPrecio}
                     className="inline-flex flex-1 items-center justify-center gap-2 rounded-lg bg-orange-500 px-4 py-2 text-sm font-semibold text-black transition hover:bg-orange-400 focus:outline-none focus-visible:ring-2 focus-visible:ring-orange-300 disabled:cursor-not-allowed disabled:bg-[#333] disabled:text-gray-500"
                   >
                     <ShoppingCartIcon className="h-5 w-5" />
-                    {agotado ? "Sin stock" : "Comprar"}
+                    {agotado
+                      ? "Sin stock"
+                      : sinPrecio
+                        ? "Sin precio"
+                        : "Comprar"}
                   </button>
                 </div>
               </li>
@@ -457,6 +484,10 @@ export default function Tienda() {
                       {compra.total_units} unidad(es) en total
                     </p>
                   </div>
+
+                  <span className="self-start rounded-full border border-orange-500/40 bg-orange-500/15 px-3 py-1 text-xs font-semibold text-orange-300 sm:self-auto">
+                    {formatearPrecio(totalCompra(compra))}
+                  </span>
                 </div>
 
                 <ul className="mt-2 space-y-1 text-sm text-gray-300">
@@ -473,6 +504,9 @@ export default function Tienda() {
                         <span className="text-gray-500">
                           ({descripcionItem(item)})
                         </span>
+                      </span>
+                      <span className="shrink-0 text-gray-400">
+                        {formatearPrecio(item.subtotal)}
                       </span>
                     </li>
                   ))}
@@ -519,6 +553,21 @@ export default function Tienda() {
                   {porComprar.variante.vendible} disponible(s)
                 </span>
               </p>
+
+              <div className="mt-3 flex items-center justify-between border-t border-[#2a2a2a] pt-3 text-sm">
+                <span className="text-gray-400">
+                  {formatearPrecio(porComprar.variante.price)} c/u
+                </span>
+                <span className="text-lg font-bold text-orange-300">
+                  Total:{" "}
+                  {formatearPrecio(
+                    subtotal(
+                      porComprar.variante.price,
+                      porComprar.cantidad
+                    )
+                  )}
+                </span>
+              </div>
             </div>
 
             <p className="mt-4 text-sm text-gray-400">

@@ -5,6 +5,7 @@ import EditarVariante from "../../components/EditarInv";
 import { PencilSquareIcon, TrashIcon } from "@heroicons/react/24/solid";
 import { useAuth } from "@/context/AuthContext";
 import { API_URL } from "@/lib/api";
+import { formatearPrecio } from "@/lib/precios";
 import {
   badgeEstadoVencimiento,
   claseEstadoVencimiento,
@@ -35,6 +36,7 @@ type Variante = {
   content_unit: string;
   sku_code: string;
   total_quantity: number;
+  price: number | null;
   batches: Lote[];
   product_name: string;
   category: string;
@@ -221,6 +223,14 @@ export default function Inventario() {
         const fechaA = new Date(fechaVencimiento(a.batches) || "9999-12-31").getTime();
         const fechaB = new Date(fechaVencimiento(b.batches) || "9999-12-31").getTime();
         return direccion === "asc" ? fechaA - fechaB : fechaB - fechaA;
+      }
+
+      if (orden === "price") {
+        // Los productos sin precio van siempre al final.
+        if (a.price === null) return 1;
+        if (b.price === null) return -1;
+
+        return direccion === "asc" ? a.price - b.price : b.price - a.price;
       }
 
       const A = String((a as any)[orden] ?? "").toLowerCase();
@@ -486,6 +496,10 @@ export default function Inventario() {
                   Cantidad {orden === "total_quantity" && (direccion === "asc" ? "▲" : "▼")}
                 </th>
 
+                <th className="whitespace-nowrap p-3 cursor-pointer" onClick={() => ordenarPor("price")}>
+                  Precio {orden === "price" && (direccion === "asc" ? "▲" : "▼")}
+                </th>
+
                 <th className="whitespace-nowrap p-3 cursor-pointer" onClick={() => ordenarPor("fecha_ingreso")}>
                   Ingreso {orden === "fecha_ingreso" && (direccion === "asc" ? "▲" : "▼")}
                 </th>
@@ -505,7 +519,7 @@ export default function Inventario() {
               {variantesOrdenadas.length === 0 && (
                 <tr>
                   <td
-                    colSpan={puedeGestionar ? 9 : 8}
+                    colSpan={puedeGestionar ? 10 : 9}
                     className="p-6 text-center text-gray-500"
                   >
                     No hay productos que coincidan con la búsqueda o el filtro.
@@ -566,6 +580,14 @@ export default function Inventario() {
 
                     <td className="whitespace-nowrap p-3">{v.total_quantity}</td>
 
+                    <td
+                      className={`whitespace-nowrap p-3 ${
+                        v.price === null ? "text-gray-500" : "text-gray-200"
+                      }`}
+                    >
+                      {formatearPrecio(v.price)}
+                    </td>
+
                     <td className="whitespace-nowrap p-3 text-gray-300">
                       {formatearFecha(ingreso)}
                     </td>
@@ -621,6 +643,7 @@ export default function Inventario() {
                                 type_variety: v.type_variety,
                                 content_value: v.content_value,
                                 content_unit: v.content_unit,
+                                price: v.price ?? "",
                               });
                             }}
                             className="rounded p-1 text-blue-400 transition hover:bg-blue-500/10 hover:text-blue-300"

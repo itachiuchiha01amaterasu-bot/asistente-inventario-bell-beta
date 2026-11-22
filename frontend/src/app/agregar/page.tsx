@@ -10,6 +10,7 @@ import {
 } from "@heroicons/react/24/outline";
 import { useAuth } from "@/context/AuthContext";
 import { API_URL } from "@/lib/api";
+import { formatearPrecio } from "@/lib/precios";
 
 type Catalogos = {
   categorias: string[];
@@ -26,6 +27,7 @@ type Creado = {
     content_value: number | null;
     content_unit: string | null;
     sku_code: string | null;
+    price: number | null;
     total_quantity: number;
   };
   lote?: {
@@ -52,6 +54,7 @@ const formInicial = () => ({
   type_variety: "",
   content_value: "",
   content_unit: "",
+  price: "",
   quantity: "1",
   arrival_date: hoyLocal(),
   expiration_date: "",
@@ -121,6 +124,14 @@ export default function AgregarProductoPage() {
       return;
     }
 
+    if (form.price.trim()) {
+      const precio = Number(form.price.replace(",", "."));
+      if (!Number.isFinite(precio) || precio < 0) {
+        setError("El precio debe ser un número mayor o igual a 0");
+        return;
+      }
+    }
+
     setEnviando(true);
 
     try {
@@ -137,6 +148,7 @@ export default function AgregarProductoPage() {
           type_variety: form.type_variety,
           content_value: form.content_value,
           content_unit: form.content_unit,
+          price: form.price,
           quantity: form.quantity,
           arrival_date: form.arrival_date,
           expiration_date: form.expiration_date,
@@ -218,6 +230,9 @@ export default function AgregarProductoPage() {
               <p className="mt-1 break-words text-sm text-green-200/90">
                 {creado.producto.name} · {creado.variante.brand} ·{" "}
                 {creado.variante.total_quantity} unidad(es)
+                {creado.variante.price !== null
+                  ? ` · ${formatearPrecio(creado.variante.price)}`
+                  : ""}
               </p>
               <p className="mt-1 break-all text-xs text-green-200/70">
                 {creado.lote ? `Lote #${creado.lote.id} · ` : ""}
@@ -367,6 +382,27 @@ export default function AgregarProductoPage() {
             </div>
             <p className="mt-1 text-xs text-gray-400">
               Opcional. Ej: 1 L, 500 g, 750 ml.
+            </p>
+          </div>
+
+          <div>
+            <label htmlFor="price" className={labelClass}>
+              Precio unitario
+            </label>
+            <input
+              id="price"
+              type="number"
+              min="0"
+              step="0.01"
+              inputMode="decimal"
+              placeholder="Ej: 1500.00"
+              className={inputClass}
+              value={form.price}
+              onChange={(e) => cambiar("price", e.target.value)}
+            />
+            <p className="mt-1 text-xs text-gray-400">
+              Opcional. Sin precio, el producto no se puede comprar en la
+              tienda.
             </p>
           </div>
 

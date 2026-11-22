@@ -210,6 +210,16 @@ def detectar_intencion(mensaje):
     if not texto:
         return None
 
+    # "ponle precio", "cambia el precio", "actualiza el precio"... es una
+    # edición aunque el verbo sea "poner", que normalmente se usa para altas.
+    if re.search(
+        r"^(?:pon|ponle|poner|cambia|cambiar|actualiza|actualizar|modifica|"
+        r"modificar|edita|editar|corrige|corregir|sube|subir|baja|bajar)\s+"
+        r"(?:el\s+)?precio\b",
+        texto,
+    ):
+        return "edit"
+
     primera = re.match(r"^([a-z]+)", texto)
     primera = primera.group(1) if primera else ""
 
@@ -343,6 +353,7 @@ def _contrato_consulta(producto, marca, hoy):
             "content_value": None,
             "content_unit": None,
             "sku_code": None,
+            "price": None,
         },
         "batch": {
             "quantity": 0,
@@ -459,7 +470,8 @@ Contrato JSON obligatorio:
     "type_variety": null,
     "content_value": null,
     "content_unit": null,
-    "sku_code": null
+    "sku_code": null,
+    "price": null
   }},
   "batch": {{
     "quantity": 0,
@@ -480,6 +492,8 @@ REGLAS DE ALTA (action "add"):
   type_variety (variedad), content_value y content_unit.
 - En product_name escribe SOLO el nombre del producto, sin repetir la marca,
   el rubro, la variedad ni el contenido.
+- Si el mensaje menciona un precio, copia SOLO el número en target.price
+  (sin símbolo de moneda ni separadores de miles; ej: 1500.50).
 - batch.quantity = unidades que ingresan.
 - batch.arrival_date = fecha de ingreso.
 - batch.expiration_date = fecha de vencimiento.
@@ -487,10 +501,10 @@ REGLAS DE ALTA (action "add"):
 REGLAS DE EDICIÓN (action "edit"):
 - changes.field debe ser EXACTAMENTE uno de estos valores:
   "brand" (marca), "category" (rubro), "product_name" (nombre),
-  "type_variety" (variedad), "content" (contenido),
+  "type_variety" (variedad), "content" (contenido), "price" (precio),
   "batch_quantity" (cantidad de un lote) o "expiration_date" (vencimiento).
 - changes.value lleva el valor nuevo exacto. Para content usa "1.5 L" o "500 g".
-  Para fechas usa el formato AAAA-MM-DD.
+  Para price usa solo el número (ej: 1500.50). Para fechas usa AAAA-MM-DD.
 - Si el mensaje menciona un lote ("lote 3"), copia ese número en batch.batch_id.
 - Para sumar unidades ("suma 5", "agrega 5 más"), usa action "edit",
   changes.field "batch_quantity" y changes.value con la cantidad a sumar.
@@ -498,6 +512,8 @@ REGLAS DE EDICIÓN (action "edit"):
 REGLAS DE CONSULTA (action "query"):
 - target.product_name y target.brand identifican el producto; deja en null
   los campos que el usuario no mencione.
+- Si pregunta el precio ("cuánto cuesta", "precio de"), usa action "query"
+  con el producto en target.
 
 INTERPRETA ESTE MENSAJE:
 {mensaje}
@@ -561,6 +577,18 @@ CONTEXTO:
 
         texto_norm = _normalizar_texto(mensaje)
 
+        # Si el mensaje habla de precio, el campo es precio aunque el modelo
+        # se confunda. Además, "precio 1500" se puede leer sin depender de la IA.
+        if contrato["action"] == "edit" and re.search(r"\bprecio\b", texto_norm):
+            contrato.setdefault("changes", {})["field"] = "price"
+
+            coincidencia_precio = re.search(
+                r"\bprecio\b(?:\s+(?:de|del|es|a|en|por))?\s*\$?\s*(\d[\d.,]*)",
+                texto,
+            )
+            if coincidencia_precio and not contrato["changes"].get("value"):
+                contrato["changes"]["value"] = coincidencia_precio.group(1)
+
         # "agrega más leche" / "suma 5 unidades" suma al lote existente en
         # vez de reemplazar la cantidad.
         if contrato["action"] == "edit" and (
@@ -622,7 +650,9 @@ CONTEXTO:
                 "del", "de", "la", "el", "marca", "rubro", "variedad", "contenido",
                 "kg", "g", "ml", "l", "unidades", "unidad", "ponle", "agrega",
                 "añade", "ingresa", "registra", "cambia", "modifica", "actualiza",
-                "quita", "elimina", "fecha", "vencimiento", "por", "definir"
+                "quita", "elimina", "fecha", "vencimiento", "por", "definir",
+                "cuanto", "cuánto", "cuesta", "cuestan", "precio", "vale",
+                "valen", "sale", "salen",
             }
             for palabra in posibles:
                 if palabra not in blacklist:

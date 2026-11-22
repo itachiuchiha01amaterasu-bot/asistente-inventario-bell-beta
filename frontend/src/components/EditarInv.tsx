@@ -43,11 +43,13 @@ export default function EditarVariante({
             ["type_variety", "Variedad"],
             ["content_value", "Contenido (valor)"],
             ["content_unit", "Unidad"],
+            ["price", "Precio unitario"],
           ].map(([campo, label]) => (
             <div key={campo}>
               <label className="text-gray-300 text-sm">{label}</label>
               <input
                 type="text"
+                inputMode={campo === "price" ? "decimal" : undefined}
                 value={form[campo] ?? ""}
                 onChange={(e) =>
                   setForm({ ...form, [campo]: e.target.value })
@@ -56,6 +58,11 @@ export default function EditarVariante({
               />
             </div>
           ))}
+
+          <p className="text-xs text-gray-500">
+            Deja el precio vacío para que el producto no se pueda comprar en la
+            tienda.
+          </p>
         </div>
 
         <div className="mt-6 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end sm:gap-3">

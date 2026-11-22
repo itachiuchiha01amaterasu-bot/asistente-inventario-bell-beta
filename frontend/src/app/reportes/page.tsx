@@ -163,7 +163,7 @@ export default function Reportes() {
       tipo: "inventario" as const,
       titulo: "Inventario completo",
       descripcion:
-        "Catálogo con rubro, producto, marca, variedad, contenido, SKU, stock, lotes y vencimiento más próximo.",
+        "Catálogo con rubro, producto, marca, variedad, contenido, precio, SKU, stock, lotes y vencimiento más próximo.",
       filas: reportes.inventario.length - 1,
       Icono: CubeIcon,
       color: "text-orange-400",
@@ -174,7 +174,7 @@ export default function Reportes() {
       tipo: "vencimientos" as const,
       titulo: "Vencimientos por lote",
       descripcion:
-        "Todos los lotes ordenados por urgencia, con estado, días restantes, cantidad, ingreso y vencimiento.",
+        "Todos los lotes ordenados por urgencia, con estado, días restantes, cantidad, precio, valor del lote, ingreso y vencimiento.",
       filas: reportes.vencimientos.length - 1,
       Icono: ExclamationTriangleIcon,
       color: "text-yellow-400",
@@ -196,7 +196,7 @@ export default function Reportes() {
       tipo: "rubros" as const,
       titulo: "Resumen por rubro",
       descripcion:
-        "Unidades, variantes, lotes vencidos, por vencer y sin fecha, agrupados por rubro.",
+        "Unidades, valor del stock, variantes, lotes vencidos, por vencer y sin fecha, agrupados por rubro.",
       filas: reportes.rubros.length - 1,
       Icono: DocumentChartBarIcon,
       color: "text-cyan-400",

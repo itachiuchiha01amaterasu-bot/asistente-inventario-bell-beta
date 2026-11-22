@@ -15,9 +15,11 @@ import {
   descripcionItem,
   filasVentas,
   formatearFechaHora,
+  totalCompra,
   type Compra,
 } from "@/lib/compras";
 import { descargarCSV, nombreReporte } from "@/lib/reportes";
+import { formatearPrecio } from "@/lib/precios";
 
 export default function Ventas() {
   const { user, token, isAuthenticated, isReady } = useAuth();
@@ -126,6 +128,8 @@ export default function Ventas() {
 
   const compradores = new Set(compras.map((c) => c.username)).size;
 
+  const totalVendido = compras.reduce((total, compra) => total + compra.total, 0);
+
   const productoTop = useMemo(() => {
     const conteo = new Map<string, number>();
 
@@ -212,7 +216,7 @@ export default function Ventas() {
         </div>
       )}
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
         <div className="rounded-xl border border-[#2a2a2a] bg-[#1b1b1b] p-4 shadow-lg sm:p-5">
           <p className="text-sm text-gray-400">Compras registradas</p>
           <p className="mt-1 text-3xl font-bold text-orange-400">
@@ -229,6 +233,13 @@ export default function Ventas() {
           <p className="text-sm text-gray-400">Compradores</p>
           <p className="mt-1 text-3xl font-bold text-orange-400">
             {compradores}
+          </p>
+        </div>
+
+        <div className="rounded-xl border border-green-500/30 bg-green-500/10 p-4 shadow-lg sm:p-5">
+          <p className="text-sm text-green-200/80">Total vendido</p>
+          <p className="mt-1 text-2xl font-bold text-green-300">
+            {formatearPrecio(totalVendido)}
           </p>
         </div>
 
@@ -300,7 +311,8 @@ export default function Ventas() {
                 </div>
 
                 <span className="self-start rounded-full border border-orange-500/40 bg-orange-500/15 px-3 py-1 text-xs font-semibold text-orange-300 sm:self-auto">
-                  {compra.total_units} unidad(es)
+                  {compra.total_units} unidad(es) ·{" "}
+                  {formatearPrecio(totalCompra(compra))}
                 </span>
               </div>
 
@@ -318,6 +330,13 @@ export default function Ventas() {
                       <span className="text-gray-500">
                         ({descripcionItem(item)})
                       </span>
+                    </span>
+
+                    <span className="shrink-0 text-sm text-gray-400">
+                      {formatearPrecio(item.unit_price)} c/u ·{" "}
+                      <strong className="text-gray-200">
+                        {formatearPrecio(item.subtotal)}
+                      </strong>
                     </span>
                   </li>
                 ))}

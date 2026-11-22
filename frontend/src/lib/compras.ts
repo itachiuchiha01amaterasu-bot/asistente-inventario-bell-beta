@@ -1,4 +1,5 @@
 import { parseFechaLocal, type LoteVencimiento } from "./vencimientos";
+import { precioCSV } from "./precios";
 
 export type CompraItem = {
   variant_id: number | null;
@@ -8,6 +9,8 @@ export type CompraItem = {
   content_value: number | null;
   content_unit: string | null;
   quantity: number;
+  unit_price: number | null;
+  subtotal: number | null;
 };
 
 export type Compra = {
@@ -16,6 +19,7 @@ export type Compra = {
   username: string;
   created_at: string | null;
   total_units: number;
+  total: number;
   items: CompraItem[];
 };
 
@@ -46,6 +50,17 @@ export function descripcionItem(item: CompraItem): string {
   ].filter(Boolean);
 
   return partes.length > 0 ? partes.join(" · ") : "Sin detalle";
+}
+
+// Total de una compra. Las ventas registradas antes de que existiera el
+// precio no tienen valor guardado: se muestran como "Sin precio" en lugar
+// de un "$ 0,00" que daría a entender que se vendieron gratis.
+export function totalCompra(compra: Compra): number | null {
+  if (compra.total > 0) return compra.total;
+
+  return compra.items.some((item) => item.unit_price !== null)
+    ? compra.total
+    : null;
 }
 
 export function formatearFechaHora(fecha: string | null): string {
@@ -79,6 +94,8 @@ export function filasVentas(compras: Compra[]): string[][] {
       "Variedad",
       "Contenido",
       "Cantidad",
+      "Precio unitario",
+      "Subtotal",
     ],
   ];
 
@@ -95,6 +112,8 @@ export function filasVentas(compras: Compra[]): string[][] {
           ? `${item.content_value} ${item.content_unit}`
           : "Por definir",
         String(item.quantity),
+        precioCSV(item.unit_price),
+        precioCSV(item.subtotal),
       ]);
     }
   }

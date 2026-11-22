@@ -63,6 +63,64 @@ def normalizar_contenido(valor, unidad_raw):
     return v, unidad_raw
 
 
+def parsear_precio(valor):
+    """Convierte un precio escrito de varias formas a número.
+
+    Acepta "", "$ 1.500,50", "1500.5", "1,500.50", etc. Devuelve
+    (precio, error): precio None significa "sin precio".
+    """
+    if valor is None:
+        return None, None
+
+    texto = str(valor).strip()
+    if not texto:
+        return None, None
+
+    texto = texto.replace("$", "").strip()
+    # Se quita el nombre de la moneda antes de eliminar los espacios, para
+    # que "1500 ARS" no termine como "1500ARS" (sin límite de palabra).
+    texto = re.sub(
+        r"(?i)(?<![a-z])(ars|usd|eur|bs|bolivares|bolívares|pesos?)(?![a-z])",
+        "",
+        texto,
+    ).strip()
+    texto = texto.replace(" ", "")
+
+    if "," in texto and "." in texto:
+        # Formato español: 1.500,50 -> 1500.50 (o inglés: 1,500.50).
+        if texto.rfind(",") > texto.rfind("."):
+            texto = texto.replace(".", "").replace(",", ".")
+        else:
+            texto = texto.replace(",", "")
+    elif "," in texto:
+        texto = texto.replace(",", ".")
+    elif re.fullmatch(r"\d{1,3}(\.\d{3})+", texto):
+        # "1.500" se interpreta como mil quinientos, no como 1.5.
+        texto = texto.replace(".", "")
+
+    try:
+        precio = float(texto)
+    except (TypeError, ValueError):
+        return None, "El precio debe ser un número mayor o igual a 0"
+
+    if precio < 0:
+        return None, "El precio no puede ser negativo"
+
+    if precio > 9999999999.99:
+        return None, "El precio es demasiado alto"
+
+    return round(precio, 2), None
+
+
+def precio_texto(precio):
+    """Formato de precio para las respuestas del chat: $1.500,50."""
+    if precio is None:
+        return "Sin precio"
+
+    texto = f"{float(precio):,.2f}"
+    return "$" + texto.replace(",", "X").replace(".", ",").replace("X", ".")
+
+
 def normalizar_fecha(valor):
     if not valor or str(valor).lower() in ["-", "por definir", "none", "null"]:
         return None
@@ -329,6 +387,13 @@ def ejecutar_accion(contrato):
             contenido_unidad
         )
 
+        precio, error_precio = parsear_precio(target.get("price"))
+        if error_precio:
+            return f"No entendí el precio. {error_precio}"
+
+        if precio is not None:
+            variante.price = precio
+
         arrival = normalizar_fecha(batch.get("arrival_date")) or date.today()
 
         lote = InventoryBatch(
@@ -343,7 +408,8 @@ def ejecutar_accion(contrato):
 
         return (
             f"Producto agregado correctamente. Lote #{lote.id}. "
-            f"SKU: {variante.sku_code}"
+            f"SKU: {variante.sku_code}. "
+            f"Precio: {precio_texto(variante.price)}"
         )
 
 
@@ -373,7 +439,9 @@ def ejecutar_accion(contrato):
                         lineas.append(
                             f"- {producto.name} | Marca: {marca} | "
                             f"Variedad: {variante.type_variety or 'Sin variedad'} | "
-                            f"Contenido: {contenido} | Stock: {stock} unidades"
+                            f"Contenido: {contenido} | "
+                            f"Precio: {precio_texto(variante.price)} | "
+                            f"Stock: {stock} unidades"
                         )
 
             resumen = (
@@ -414,6 +482,7 @@ def ejecutar_accion(contrato):
             f"Marca: {variante.brand.name if variante.brand else 'Sin marca'}\n"
             f"Variedad: {variante.type_variety or 'Sin variedad'}\n"
             f"Contenido: {variante.content_value} {variante.content_unit}\n"
+            f"Precio: {precio_texto(variante.price)}\n"
             f"SKU: {variante.sku_code}\n\n"
             f"Lotes:\n{texto_lotes}\n"
             f"Total disponible: {total} unidades."
@@ -560,6 +629,19 @@ def ejecutar_accion(contrato):
             lote.quantity = lote.quantity + cantidad if sumar else cantidad
             lote_editado = lote
 
+        elif campo == "price":
+            precio, error_precio = parsear_precio(valor)
+            if error_precio:
+                return f"No entendí el precio. {error_precio}"
+
+            if precio is None:
+                return (
+                    "Necesito el precio nuevo, por ejemplo: "
+                    "'ponle precio 1500 a la leche'."
+                )
+
+            variante.price = precio
+
         else:
             return f"El campo '{campo}' no es válido."
 
@@ -594,6 +676,7 @@ def ejecutar_accion(contrato):
             f"- Marca: {variante.brand.name if variante.brand else 'Sin marca'}\n"
             f"- Variedad: {variante.type_variety or 'Sin variedad'}\n"
             f"- Contenido: {variante.content_value} {variante.content_unit}\n"
+            f"- Precio: {precio_texto(variante.price)}\n"
             f"SKU actualizado: {variante.sku_code}"
         )
 

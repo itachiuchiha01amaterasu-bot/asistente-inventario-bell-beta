@@ -64,6 +64,10 @@ class ProductVariant(db.Model):
 
     sku_code = db.Column(db.String(200), unique=True, nullable=True)
 
+    # Precio unitario en moneda local. Es opcional: si está vacío, el
+    # producto no se puede comprar desde la tienda.
+    price = db.Column(db.Numeric(12, 2), nullable=True)
+
     batches = db.relationship(
         "InventoryBatch",
         backref="variant",
@@ -141,12 +145,17 @@ class Sale(db.Model):
     )
 
     def to_dict(self):
+        total = sum(
+            (item.unit_price or 0) * item.quantity for item in self.items
+        )
+
         return {
             "id": self.id,
             "user_id": self.user_id,
             "username": self.username,
             "created_at": self.created_at.isoformat() if self.created_at else None,
             "total_units": sum(item.quantity for item in self.items),
+            "total": round(float(total), 2),
             "items": [item.to_dict() for item in self.items],
         }
 
@@ -168,7 +177,17 @@ class SaleItem(db.Model):
 
     quantity = db.Column(db.Integer, nullable=False)
 
+    # Precio unitario congelado al momento de la venta: si el precio del
+    # producto cambia después, el historial no se altera.
+    unit_price = db.Column(db.Numeric(12, 2), nullable=True)
+
     def to_dict(self):
+        subtotal = (
+            float(self.unit_price) * self.quantity
+            if self.unit_price is not None
+            else None
+        )
+
         return {
             "variant_id": self.variant_id,
             "product_name": self.product_name,
@@ -177,4 +196,8 @@ class SaleItem(db.Model):
             "content_value": self.content_value,
             "content_unit": self.content_unit,
             "quantity": self.quantity,
+            "unit_price": (
+                float(self.unit_price) if self.unit_price is not None else None
+            ),
+            "subtotal": round(subtotal, 2) if subtotal is not None else None,
         }

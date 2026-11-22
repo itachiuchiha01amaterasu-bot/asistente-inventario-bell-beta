@@ -69,7 +69,7 @@ La respuesta de una consulta detallada muestra:
 ### Alta completa (recomendada)
 
 ```text
-agrega 12 unidades de aceite de girasol marca Cocinero del rubro Aceites, variedad refinado, contenido 1.5 L, ingreso el 10/01/2026 y vence el 20/12/2026
+agrega 12 unidades de aceite de girasol marca Cocinero del rubro Aceites, variedad refinado, contenido 1.5 L, precio 1500.50, ingreso el 10/01/2026 y vence el 20/12/2026
 ```
 
 Esto registra:
@@ -81,6 +81,7 @@ Esto registra:
 | Rubro | Aceites |
 | Variedad | refinado |
 | Contenido | 1.5 L |
+| Precio | $ 1.500,50 |
 | Cantidad | 12 unidades |
 | Fecha de ingreso | 10/01/2026 |
 | Fecha de vencimiento | 20/12/2026 |
@@ -88,7 +89,7 @@ Esto registra:
 La respuesta es similar a:
 
 ```text
-Producto agregado correctamente. Lote #12. SKU: ACEITES-ACEITEDEGIRASOL-COCINERO-REFINADO-1.5L
+Producto agregado correctamente. Lote #12. SKU: ACEITES-ACEITEDEGIRASOL-COCINERO-REFINADO-1.5L. Precio: $1.500,50
 ```
 
 El número de lote (`#12`) queda fijo y no cambia al editar el producto.
@@ -103,6 +104,7 @@ Si no indicas algún dato, se completa así:
 | Rubro | `General` |
 | Variedad | Sin variedad |
 | Contenido | Por definir |
+| Precio | Sin precio (no se puede vender en la tienda) |
 | Fecha de ingreso | Fecha de hoy |
 | Fecha de vencimiento | Sin fecha |
 
@@ -150,6 +152,7 @@ suma 5 unidades al lote 3 de leche de la marca Bell
 | Variedad | `cambia la variedad de leche Kaly a Descremada` |
 | Contenido | `cambia el contenido de leche Kaly a 1.5 L` |
 | Contenido en gramos | `cambia el contenido de leche Kaly a 500 g` |
+| Precio | `ponle precio 1500 a leche Kaly` |
 | Cantidad (un solo lote) | `cambia la cantidad de leche Kaly a 15` |
 | Cantidad de un lote | `cambia la cantidad del lote 3 de leche Kaly a 15` |
 | Sumar unidades | `suma 5 unidades a leche Kaly` |
@@ -167,6 +170,9 @@ suma 5 unidades al lote 3 de leche de la marca Bell
    vencimiento. Si hay un solo lote, se elige solo.
 4. El SKU se actualiza automáticamente cuando cambias nombre, marca, rubro,
    variedad o contenido.
+5. El precio se escribe sin símbolo de moneda en la orden, pero se aceptan
+   formatos como `1500`, `1.500,50` o `$ 1500`. Los productos sin precio no
+   se pueden comprar en la tienda.
 
 ### Ejemplo de edición completa
 
@@ -264,11 +270,12 @@ elimina la variante completa y, si corresponde, el producto.
 ```text
 # Consultar
 ¿Cuánto queda de leche de la marca Bell?
+¿Cuánto cuesta la leche de la marca Bell?
 Muéstrame los lotes de leche de la marca Bell
 Muéstrame el inventario
 
 # Alta completa
-agrega 12 unidades de aceite de girasol marca Cocinero del rubro Aceites, variedad refinado, contenido 1.5 L, ingreso el 10/01/2026 y vence el 20/12/2026
+agrega 12 unidades de aceite de girasol marca Cocinero del rubro Aceites, variedad refinado, contenido 1.5 L, precio 1500.50, ingreso el 10/01/2026 y vence el 20/12/2026
 
 # Nuevo lote de un producto existente
 agrega 8 unidades de leche Bell entera de 1 L del rubro Lacteos, ingreso el 05/02/2026 y vence el 05/03/2026
@@ -279,6 +286,7 @@ cambia el rubro de leche Kaly a Bebidas
 cambia el nombre de leche Kaly a Leche Entera
 cambia la variedad de leche Kaly a Descremada
 cambia el contenido de leche Kaly a 1.5 L
+ponle precio 1500 a leche Kaly
 cambia la cantidad del lote 3 de leche Kaly a 15
 suma 5 unidades al lote 3 de leche Kaly
 cambia el vencimiento del lote 3 de leche Kaly al 20/12/2026
