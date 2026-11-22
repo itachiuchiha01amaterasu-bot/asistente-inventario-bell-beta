@@ -10,6 +10,8 @@ import {
   ChatBubbleLeftRightIcon,
   DocumentChartBarIcon,
   PlusCircleIcon,
+  ReceiptPercentIcon,
+  ShoppingCartIcon,
   UsersIcon,
   XMarkIcon,
 } from "@heroicons/react/24/outline";
@@ -96,6 +98,28 @@ export default function Sidebar({ onNavigate, onClose }: Props) {
           <DocumentChartBarIcon className={iconClass("/reportes")} />
           Reportes
         </Link>
+
+        {isReady && user?.role === "user" && (
+          <Link
+            href="/tienda"
+            onClick={onNavigate}
+            className={linkClass("/tienda")}
+          >
+            <ShoppingCartIcon className={iconClass("/tienda")} />
+            Tienda
+          </Link>
+        )}
+
+        {isReady && esAdmin && (
+          <Link
+            href="/ventas"
+            onClick={onNavigate}
+            className={linkClass("/ventas")}
+          >
+            <ReceiptPercentIcon className={iconClass("/ventas")} />
+            Ventas
+          </Link>
+        )}
 
         {isReady && user?.role === "super_admin" && (
           <Link

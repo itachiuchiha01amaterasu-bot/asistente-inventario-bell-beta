@@ -116,3 +116,65 @@ class User(db.Model):
             "role": self.role,
             "created_at": self.created_at.isoformat() if self.created_at else None,
         }
+
+
+# -----------------------------
+# Compras / Ventas directas
+# -----------------------------
+class Sale(db.Model):
+    __tablename__ = "sales"
+
+    id = db.Column(db.Integer, primary_key=True)
+
+    # Se guardan datos del comprador aunque la cuenta se elimine después:
+    # el historial de ventas no debe romperse.
+    user_id = db.Column(db.Integer, nullable=True)
+    username = db.Column(db.String(80), nullable=False)
+
+    created_at = db.Column(db.DateTime, default=db.func.current_timestamp())
+
+    items = db.relationship(
+        "SaleItem",
+        backref="sale",
+        lazy=True,
+        cascade="all, delete-orphan",
+    )
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "user_id": self.user_id,
+            "username": self.username,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+            "total_units": sum(item.quantity for item in self.items),
+            "items": [item.to_dict() for item in self.items],
+        }
+
+
+class SaleItem(db.Model):
+    __tablename__ = "sale_items"
+
+    id = db.Column(db.Integer, primary_key=True)
+    sale_id = db.Column(db.Integer, db.ForeignKey("sales.id"), nullable=False)
+
+    # Copia del producto al momento de la venta: si luego se edita o se
+    # elimina del inventario, el historial sigue siendo legible.
+    variant_id = db.Column(db.Integer, nullable=True)
+    product_name = db.Column(db.String(200), nullable=False)
+    brand = db.Column(db.String(120), nullable=True)
+    type_variety = db.Column(db.String(200), nullable=True)
+    content_value = db.Column(db.Float, nullable=True)
+    content_unit = db.Column(db.String(20), nullable=True)
+
+    quantity = db.Column(db.Integer, nullable=False)
+
+    def to_dict(self):
+        return {
+            "variant_id": self.variant_id,
+            "product_name": self.product_name,
+            "brand": self.brand,
+            "type_variety": self.type_variety,
+            "content_value": self.content_value,
+            "content_unit": self.content_unit,
+            "quantity": self.quantity,
+        }

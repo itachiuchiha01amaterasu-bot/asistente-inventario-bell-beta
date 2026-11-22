@@ -5,7 +5,7 @@ from flask_jwt_extended import JWTManager
 from functools import wraps
 from flask_jwt_extended import jwt_required, get_jwt_identity
 
-from backend.models import db, Category, Brand, Product, ProductVariant, InventoryBatch, User
+from backend.models import db, Category, Brand, Product, ProductVariant, InventoryBatch, User, Sale, SaleItem
 from backend.interpretar import interpretar_mensaje, ErrorIA
 from backend.ejecutar import (
     ejecutar_accion,
@@ -165,6 +165,148 @@ def inventario():
     except Exception as e:
         print("Error en /api/inventario:", e)
         return jsonify({"error": "Error obteniendo inventario"}), 500
+
+
+def _lote_vendible(lote, hoy):
+    """Un lote vencido no se puede vender; uno sin fecha sí."""
+    return lote.expiration_date is None or lote.expiration_date >= hoy
+
+
+def _lotes_para_vender(variante):
+    """Primero lo que vence antes; los lotes sin fecha van al final."""
+    return sorted(
+        variante.batches,
+        key=lambda l: (
+            l.expiration_date is None,
+            l.expiration_date or date.max,
+            l.id,
+        ),
+    )
+
+
+@app.route("/api/compras", methods=["POST"])
+@rol_requerido("user")
+def comprar():
+    """Venta directa: descuenta el stock en el momento de confirmar."""
+    data = request.get_json(silent=True) or {}
+    items = data.get("items")
+
+    if not isinstance(items, list) or not items:
+        return jsonify({"error": "No indicaste qué productos comprar"}), 400
+
+    # Agrupar cantidades si llega el mismo producto repetido.
+    cantidades = {}
+    for item in items:
+        if not isinstance(item, dict):
+            return jsonify({"error": "Los productos enviados no son válidos"}), 400
+
+        try:
+            variant_id = int(item.get("variant_id"))
+            cantidad = int(item.get("quantity"))
+        except (TypeError, ValueError):
+            return jsonify({"error": "La cantidad indicada no es válida"}), 400
+
+        if cantidad <= 0:
+            return jsonify({"error": "La cantidad debe ser mayor a cero"}), 400
+
+        cantidades[variant_id] = cantidades.get(variant_id, 0) + cantidad
+
+    user = User.query.get(get_jwt_identity())
+    if not user:
+        return jsonify({"error": "Usuario no encontrado"}), 404
+
+    hoy = date.today()
+    venta = Sale(user_id=user.id, username=user.username)
+
+    try:
+        for variant_id, cantidad in cantidades.items():
+            variante = ProductVariant.query.get(variant_id)
+            if not variante:
+                db.session.rollback()
+                return jsonify({
+                    "error": f"El producto #{variant_id} ya no existe en el inventario"
+                }), 400
+
+            lotes = _lotes_para_vender(variante)
+            disponibles = sum(
+                l.quantity for l in lotes if _lote_vendible(l, hoy)
+            )
+
+            nombre = (
+                variante.product.name if variante.product else f"Producto #{variant_id}"
+            )
+
+            if cantidad > disponibles:
+                db.session.rollback()
+                if disponibles <= 0:
+                    return jsonify({
+                        "error": f"No hay stock disponible de {nombre}"
+                    }), 400
+                return jsonify({
+                    "error": (
+                        f"Solo hay {disponibles} unidad(es) disponible(s) de {nombre}"
+                    )
+                }), 400
+
+            restante = cantidad
+            for lote in lotes:
+                if restante <= 0:
+                    break
+                if not _lote_vendible(lote, hoy):
+                    continue
+
+                usar = min(lote.quantity, restante)
+                lote.quantity -= usar
+                restante -= usar
+
+                # Los lotes agotados se eliminan del inventario.
+                if lote.quantity == 0:
+                    db.session.delete(lote)
+
+            venta.items.append(
+                SaleItem(
+                    variant_id=variante.id,
+                    product_name=nombre,
+                    brand=variante.brand.name if variante.brand else None,
+                    type_variety=variante.type_variety,
+                    content_value=variante.content_value,
+                    content_unit=variante.content_unit,
+                    quantity=cantidad,
+                )
+            )
+
+        db.session.add(venta)
+        db.session.commit()
+
+    except Exception as e:
+        db.session.rollback()
+        print("Error en /api/compras:", e)
+        return jsonify({"error": "No se pudo registrar la compra"}), 500
+
+    return jsonify({
+        "mensaje": "Compra registrada correctamente",
+        "compra": venta.to_dict(),
+    }), 201
+
+
+@app.route("/api/compras", methods=["GET"])
+@rol_requerido("super_admin", "admin", "user")
+def listar_compras():
+    """El rol user ve sus compras; los administradores ven todas las ventas."""
+    user = User.query.get(get_jwt_identity())
+    if not user:
+        return jsonify({"error": "Usuario no encontrado"}), 404
+
+    consulta = Sale.query
+    if user.role == "user":
+        consulta = consulta.filter_by(user_id=user.id)
+
+    ventas = consulta.order_by(Sale.id.desc()).limit(200).all()
+
+    return jsonify({
+        "compras": [v.to_dict() for v in ventas],
+        "puede_comprar": user.role == "user",
+    }), 200
 
 
 @app.route("/api/catalogos", methods=["GET"])
