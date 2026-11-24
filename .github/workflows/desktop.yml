@@ -21,13 +21,6 @@ jobs:
       fail-fast: false
       matrix:
         os: [windows-latest, ubuntu-latest]
-        include:
-          - os: windows-latest
-            artifact: windows
-            script: npm run dist -- --win
-          - os: ubuntu-latest
-            artifact: linux
-            script: npm run dist -- --linux
 
     defaults:
       run:
@@ -47,15 +40,22 @@ jobs:
       - name: Instalar dependencias
         run: npm ci
 
-      - name: Compilar instaladores
-        run: ${{ matrix.script }}
+      - name: Compilar instaladores de Windows
+        if: matrix.os == 'windows-latest'
+        run: npm run dist -- --win
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: "false"
+
+      - name: Compilar instaladores de Linux
+        if: matrix.os == 'ubuntu-latest'
+        run: npm run dist -- --linux
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: "false"
 
       - name: Guardar instaladores
         uses: actions/upload-artifact@v4
         with:
-          name: inventario-bell-${{ matrix.artifact }}
+          name: inventario-bell-${{ matrix.os }}
           path: |
             desktop/dist/*.exe
             desktop/dist/*.deb
