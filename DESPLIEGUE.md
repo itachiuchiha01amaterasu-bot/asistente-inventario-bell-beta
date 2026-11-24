@@ -13,6 +13,10 @@ Repositorio: <https://github.com/itachiuchiha01amaterasu-bot/asistente-inventari
 
 > 💡 ¿Quieres ejecutar la aplicación en Windows o Linux sin instalar Python ni
 > Node? Usa Docker: consulta **[DOCKER.md](DOCKER.md)**.
+>
+> 💡 ¿Quieres instalarla como una aplicación normal, con acceso directo y sin
+> Docker? Descarga el instalador de escritorio: consulta
+> **[DESKTOP.md](DESKTOP.md)**.
 
 ---
 

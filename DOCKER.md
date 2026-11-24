@@ -1,5 +1,8 @@
 # 🐳 Inventario Bell con Docker (Windows y Linux)
 
+> 💡 ¿Buscas instalar la app como una aplicación normal, sin Docker? Usa el
+> instalador de escritorio: consulta **[DESKTOP.md](DESKTOP.md)**.
+
 La aplicación completa corre con Docker: **PostgreSQL + backend Flask + frontend Next.js**.
 No hace falta instalar Python ni Node en el equipo; solo Docker.
 

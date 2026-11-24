@@ -1,0 +1,77 @@
+{
+  "name": "inventario-bell",
+  "version": "1.0.0",
+  "description": "Cliente de escritorio de Inventario Bell",
+  "homepage": "https://github.com/itachiuchiha01amaterasu-bot/asistente-inventario-bell-beta",
+  "desktopName": "inventario-bell.desktop",
+  "main": "main.js",
+  "author": "Inventario Bell",
+  "license": "UNLICENSED",
+  "private": true,
+  "scripts": {
+    "start": "electron .",
+    "dist": "electron-builder",
+    "dist:linux": "electron-builder --linux",
+    "dist:win": "electron-builder --win"
+  },
+  "devDependencies": {
+    "electron": "45.4.1",
+    "electron-builder": "26.18.0"
+  },
+  "build": {
+    "appId": "com.bell.inventario",
+    "productName": "Inventario Bell",
+    "directories": {
+      "output": "dist",
+      "buildResources": "build"
+    },
+    "files": [
+      "main.js",
+      "offline.html",
+      "package.json",
+      "build/icon.png"
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "build/icon.ico"
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowElevation": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Inventario Bell",
+      "runAfterFinish": true,
+      "deleteAppDataOnUninstall": false,
+      "artifactName": "InventarioBell-Setup-${version}.${ext}"
+    },
+    "linux": {
+      "target": [
+        "AppImage",
+        "deb"
+      ],
+      "icon": "build/icon.png",
+      "category": "Office",
+      "maintainer": "Inventario Bell <admin@inventario.local>",
+      "synopsis": "Inventario y tienda Bell",
+      "description": "Cliente de escritorio para gestionar inventario, ventas y reportes de Bell.",
+      "syncDesktopName": true,
+      "artifactName": "InventarioBell-${version}-${arch}.${ext}",
+      "desktop": {
+        "entry": {
+          "Name": "Inventario Bell",
+          "Comment": "Inventario, tienda y reportes"
+        }
+      }
+    }
+  }
+}
