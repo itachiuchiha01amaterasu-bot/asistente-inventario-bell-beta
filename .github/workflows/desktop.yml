@@ -1,97 +1,11 @@
-name: App de escritorio
+name: Test minimal
 
 on:
-  workflow_dispatch:
   push:
     branches: [main]
-    paths:
-      - "desktop/**"
-      - ".github/workflows/desktop.yml"
-  tags:
-    - "desktop-v*"
-
-permissions:
-  contents: write
 
 jobs:
   build:
-    name: Compilar (${{ matrix.os }})
-    runs-on: ${{ matrix.os }}
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [windows-latest, ubuntu-latest]
-
-    defaults:
-      run:
-        working-directory: desktop
-
-    steps:
-      - name: Descargar código
-        uses: actions/checkout@v4
-
-      - name: Configurar Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: npm
-          cache-dependency-path: desktop/package-lock.json
-
-      - name: Instalar dependencias
-        run: npm ci
-
-      - name: Compilar instaladores de Windows
-        if: matrix.os == 'windows-latest'
-        run: npm run dist -- --win
-        env:
-          CSC_IDENTITY_AUTO_DISCOVERY: "false"
-
-      - name: Compilar instaladores de Linux
-        if: matrix.os == 'ubuntu-latest'
-        run: npm run dist -- --linux
-        env:
-          CSC_IDENTITY_AUTO_DISCOVERY: "false"
-
-      - name: Guardar instaladores
-        uses: actions/upload-artifact@v4
-        with:
-          name: inventario-bell-${{ matrix.os }}
-          path: |
-            desktop/dist/*.exe
-            desktop/dist/*.deb
-            desktop/dist/*.AppImage
-          if-no-files-found: error
-          retention-days: 14
-
-  release:
-    name: Publicar instaladores
-    needs: build
     runs-on: ubuntu-latest
     steps:
-      - name: Descargar instaladores
-        uses: actions/download-artifact@v4
-        with:
-          path: artefactos
-          merge-multiple: true
-
-      - name: Crear o actualizar la release
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || 'desktop-latest' }}
-          name: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || 'Inventario Bell · última versión' }}
-          body: |
-            Instaladores de la app de escritorio de Inventario Bell.
-
-            - **Windows:** `InventarioBell-Setup-*.exe`
-            - **Linux (Debian/Ubuntu):** `InventarioBell-*.deb`
-            - **Linux (AppImage):** `InventarioBell-*.AppImage`
-
-            La app se conecta a la versión en la nube: los datos se comparten
-            entre todos los usuarios y equipos. Requiere internet.
-
-            Instrucciones: ver `DESKTOP.md` en el repositorio.
-          files: artefactos/*
-          fail_on_unmatched_files: true
-          make_latest: true
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - run: echo hola
